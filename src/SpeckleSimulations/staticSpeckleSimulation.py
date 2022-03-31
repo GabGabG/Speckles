@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import abc
 
 
+# TODO : Shift before * mask
+
 class StaticSpeckleSimulation(abc.ABC):
 
     def __init__(self, sim_shape: int):

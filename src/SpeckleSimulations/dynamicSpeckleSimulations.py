@@ -7,6 +7,8 @@ from matplotlib.animation import ArtistAnimation, FuncAnimation
 import warnings
 
 
+# TODO: Shift before * masks
+
 class DynamicSpeckleSimulations(abc.ABC):
 
     def __init__(self, sim_shape: int, n_time_steps: int = 500):
