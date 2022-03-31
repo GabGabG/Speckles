@@ -2,7 +2,7 @@ import imageio as imio
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
-from scipy.optimize import root_scalar
+from scipy.optimize import root_scalar, bisect
 from scipy.ndimage import gaussian_filter, median_filter
 from typing import Tuple, Callable
 
@@ -36,6 +36,7 @@ class SpeckleImageManipulations:
         if image_from_array is not None:
             self._original_image = image_from_array.copy()
         self._modified_image = self._original_image.copy()
+        self._autocorrelation_obj = None
 
     @property
     def original_image(self):
@@ -44,6 +45,12 @@ class SpeckleImageManipulations:
     @property
     def modified_image(self):
         return self._modified_image.copy()
+
+    @property
+    def autocorrelation(self):
+        if self._autocorrelation_obj is None:
+            return None
+        return self._autocorrelation_obj.autocorrelation
 
     @property
     def image_path(self):
@@ -76,7 +83,18 @@ class SpeckleImageManipulations:
         :param background_image_as_array:
         :return:
         """
-        pass
+        c1 = background_image_path is None and background_image_as_array is None
+        c2 = background_image_path is not None and background_image_as_array is not None
+        if c1 or c2:
+            raise ValueError("Please give either the image path or the image (as an array), not both.")
+        b_image = None
+        if background_image_path is not None:
+            b_image = SpeckleImageReader(background_image_path).read()
+        if background_image_as_array is not None:
+            b_image = background_image_as_array
+        if b_image.shape != self._modified_image.shape:
+            raise ValueError("The shape of the background image must match the current modified image's shape.")
+        self._modified_image = np.clip(self._modified_image - b_image, 0, None)
 
     def apply_gaussian_normalization(self, filter_std_dev: float = 0):
         """
@@ -114,7 +132,23 @@ class SpeckleImageManipulations:
         self._modified_image = func(self._modified_image, *fargs, **fkwargs)
 
     def do_autocorrelation(self):
-        pass
+        self._autocorrelation_obj = AutocorrelationUtils(self._modified_image)
+        self._autocorrelation_obj.autocorrelate()
+
+    def access_autocorrelation_slices(self, slices_pos: Tuple[int, int] = (None, None)):
+        if self._autocorrelation_obj is None:
+            raise ValueError("Please do the autocorrelation before accessing its slices.")
+        return self._autocorrelation_obj.autocorrelation_slices(slices_pos)
+
+    def get_speckle_sizes(self):
+        if self._autocorrelation_obj is None:
+            raise ValueError("Please do the autocorrelation before finding the (average) speckle sizes.")
+        h_slice, v_slice = self.access_autocorrelation_slices()
+        data_x_h = np.arange(len(h_slice))
+        h_speckle_size = PeakMeasurementUtils(data_x_h, h_slice).find_FWHM()
+        data_x_v = np.arange(len(v_slice))
+        v_speckle_size = PeakMeasurementUtils(data_x_v, v_slice).find_FWHM()
+        return h_speckle_size, v_speckle_size
 
 
 class AutocorrelationUtils:
@@ -123,6 +157,12 @@ class AutocorrelationUtils:
         self._speckle_image = speckle_image
         self._autocorrelation = None
 
+    @property
+    def autocorrelation(self):
+        if self._autocorrelation is None:
+            return None
+        return self._autocorrelation.copy()
+
     def autocorrelate(self):
         fft = np.fft.fft2(self._speckle_image)
         ifft = np.fft.ifftshift(np.fft.ifft2(np.abs(fft) ** 2)).real
@@ -130,14 +170,16 @@ class AutocorrelationUtils:
         self._autocorrelation = (ifft - np.mean(self._speckle_image) ** 2) / np.var(self._speckle_image)
 
     def autocorrelation_slices(self, slices_pos: Tuple[int, int] = (None, None)):
-        pass
-
-    def show_autocorrelation(self, with_color_bar: bool = True):
-        pass
-
-    def show_autocorrelation_slices(self, slices_pos: Tuple[int, int] = (None, None), show_horizontal: bool = True,
-                                    show_vertical: bool = True):
-        pass
+        if self._autocorrelation is None:
+            raise ValueError("Please do the autocorrelation before accessing its slices.")
+        v_pos, h_pos = slices_pos
+        if v_pos is None:
+            v_pos = self._autocorrelation.shape[0] // 2
+        if h_pos is None:
+            h_pos = self._autocorrelation.shape[1] // 2
+        h_slice = self._autocorrelation[v_pos, :]
+        v_slice = self._autocorrelation[:, h_pos]
+        return h_slice, v_slice
 
 
 class PeakMeasurementUtils:
@@ -149,50 +191,32 @@ class PeakMeasurementUtils:
             raise ValueError("`data_y` must be a 1-dimensional array.")
         self._data_x = data_x.copy()
         self._data_y = data_y.copy()
-        self._interpolated_data = None
-
-    def interpolate_data(self):
         self._interpolated_data = interp1d(self._data_x, self._data_y, 'cubic', assume_sorted=True)
 
     def show_data(self, with_interpolation: bool = True):
-        if with_interpolation and self._interpolated_data is None:
-            raise ValueError("Please interpolate the data before showing the interpolation.")
         plt.plot(self._data_x, self._data_y, label="Data points")
         if with_interpolation:
             plt.plot(self._data_x, self._interpolated_data(self._data_x), label="Interpolation", linestyle="--")
         plt.legend()
         plt.show()
 
-    def find_FWHM(self, assume_maximum_is_1: bool = True):
-        if self._interpolated_data is None:
-            raise ValueError("Please interpolate the data before finding FWHM")
+    def find_FWHM(self, maximum: float = None):
         min_x = np.min(self._data_x)
         max_x = np.max(self._data_x)
-        maximum = 1 if assume_maximum_is_1 else np.max(self._data_y)
+        other_bound = (max_x - min_x) / 2
+        maximum = np.max(self._data_y) if maximum is None else maximum
         half_max = maximum / 2
 
-        def func(x):
-            return self._interpolated_data(x) - half_max
+        def func(inner_func_x):
+            return self._interpolated_data(inner_func_x) - half_max
 
-        left_root = root_scalar(func, bracket=(min_x, 0)).root
-        right_root = root_scalar(func, bracket=(0, max_x)).root
+        left_root = root_scalar(func, bracket=(min_x, other_bound)).root
+        right_root = root_scalar(func, bracket=(other_bound, max_x)).root
         return right_root - left_root
 
 
 if __name__ == '__main__':
-    from scipy.special import sinc
-
-    x = np.linspace(-10, 10, 1000)
-    y = sinc(x)
-    plt.plot(x, y, label="Data")
-
-    interp = interp1d(x, y, "cubic", assume_sorted=True)
-    plt.plot(x, interp(x), label="Interp", linestyle="--")
-    f = lambda x: interp(x) - 0.5
-    roots = root_scalar(f, bracket=(min(x), 0)), root_scalar(f, bracket=(0, max(x)))
-    sols = roots[0].root, roots[1].root
-    plt.scatter(sols, (0.5, 0.5))
-    plt.plot([min(x), max(x)], [0.5, 0.5])
-    plt.show()
-    print(sols)
-    print(f"FWHM = {sols[1] - sols[0]}")
+    path = r"C:\Users\goubi\Documents\GitHub\Speckles\src\SpeckleSimulations\test.tif"
+    sp = SpeckleImageManipulations(path)
+    sp.do_autocorrelation()
+    print(sp.get_speckle_sizes())
