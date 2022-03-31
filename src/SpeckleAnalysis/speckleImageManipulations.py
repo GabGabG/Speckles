@@ -216,7 +216,7 @@ class PeakMeasurementUtils:
 
 
 if __name__ == '__main__':
-    path = r"C:\Users\goubi\Documents\GitHub\Speckles\src\SpeckleSimulations\test.tif"
+    path = r"../SpeckleSimulations/test.tif"
     sp = SpeckleImageManipulations(path)
     sp.do_autocorrelation()
-    print(sp.get_speckle_sizes())
+    print(sp.get_speckle_sizes())  # Should be around 10 and 4
