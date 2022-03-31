@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import abc
 from typing import Union, Tuple, List
 from matplotlib.animation import ArtistAnimation, FuncAnimation
+import warnings
 
 
 class DynamicSpeckleSimulations(abc.ABC):
@@ -65,7 +66,7 @@ class DynamicSpeckleSimulations(abc.ABC):
 
     def animate_previous_simulations(self, savename: str = None, ffmpeg_encoder_path: str = None):
         fig, ax = plt.subplots()
-        ims = [[ax.imshow(self._previous_simulations[i, :, :])] for i in range(self._n_time_steps)]
+        ims = [[ax.imshow(self._previous_simulations[i, :, :], cmap="gray")] for i in range(self._n_time_steps)]
         ani = ArtistAnimation(fig, ims, interval=50, blit=True, repeat=False)
         plt.show()
         if savename is not None:
@@ -279,9 +280,86 @@ class DynamicSpeckleSimulationsFromCircularSourceWithBrownianMotion(DynamicSpeck
         self._previous_simulations = sims.transpose((2, 0, 1))
 
 
+class DynamicSpeckleSimulationsFromCircularSourceWithPupilMotion(DynamicSpeckleSimulationsFromCircularSource):
+
+    def __init__(self, sim_shape: int, n_time_step: int, circle_diameter: float,
+                 initial_pupil_position: Tuple[float, float], final_pupil_position: Tuple[float, float]):
+        super(DynamicSpeckleSimulationsFromCircularSourceWithPupilMotion, self).__init__(sim_shape, n_time_step,
+                                                                                         circle_diameter)
+        self._initial_pupil_position = initial_pupil_position
+        self._final_pupil_position = final_pupil_position
+        self._positions_x = np.linspace(self._initial_pupil_position[0], self._final_pupil_position[0],
+                                        self._n_time_steps)
+        self._positions_y = np.linspace(self._initial_pupil_position[1], self._final_pupil_position[1],
+                                        self._n_time_steps)
+
+    @property
+    def initial_pupil_position(self):
+        return self._initial_pupil_position
+
+    @property
+    def final_pupil_position(self):
+        return self._final_pupil_position
+
+    @property
+    def time_steps(self):
+        return super(DynamicSpeckleSimulationsFromCircularSourceWithPupilMotion, self).time_steps
+
+    @time_steps.setter
+    def time_steps(self, n_time_steps: int):
+        super(DynamicSpeckleSimulationsFromCircularSourceWithPupilMotion, self).time_steps = n_time_steps
+        self._positions_x = np.linspace(self._initial_pupil_position[0], self._final_pupil_position[0],
+                                        self._n_time_steps)
+        self._positions_y = np.linspace(self._initial_pupil_position[1], self._final_pupil_position[1],
+                                        self._n_time_steps)
+
+    @initial_pupil_position.setter
+    def initial_pupil_position(self, initial_pupil_position: Tuple[float, float]):
+        self._initial_pupil_position = initial_pupil_position
+        self._positions_x = np.linspace(self._initial_pupil_position[0], self._final_pupil_position[0],
+                                        self._n_time_steps)
+        self._positions_y = np.linspace(self._initial_pupil_position[1], self._final_pupil_position[1],
+                                        self._n_time_steps)
+
+    @final_pupil_position.setter
+    def final_pupil_position(self, final_pupil_position: Tuple[float, float]):
+        self._final_pupil_position = final_pupil_position
+        self._positions_x = np.linspace(self._initial_pupil_position[0], self._final_pupil_position[0],
+                                        self._n_time_steps)
+        self._positions_y = np.linspace(self._initial_pupil_position[1], self._final_pupil_position[1],
+                                        self._n_time_steps)
+
+    def _generate_circular_mask(self):
+        warnings.warn("In the future, use `_generate_circular_masks`", FutureWarning)
+        return self._generate_circular_masks()
+
+    def _generate_circular_masks(self):
+        Y, X = np.indices(self._sim_shape)
+        Y -= self._sim_shape[0] // 2
+        X -= self._sim_shape[1] // 2
+        masks = np.full((*self._sim_shape, self._n_time_steps), np.nan)
+        for i in range(self._n_time_steps):
+            center_x = self._positions_x[i]
+            center_y = self._positions_y[i]
+            mask = ((X - center_x) ** 2 + (Y - center_y) ** 2 - self._circle_radius ** 2) <= 0
+            masks[:, :, i] = mask
+        return masks
+
+    def simulate(self):
+        masks = self._generate_circular_masks()
+        W = self._generate_phases(-np.pi, np.pi)
+        W = np.broadcast_to(W, (self._n_time_steps, *W.shape)).transpose((1, 2, 0))
+        sims = (np.abs(np.fft.ifft2(np.fft.fft2(W, axes=(0, 1)) * masks, axes=(0, 1))) ** 2).real
+        sims /= np.max(sims, (0, 1))
+        self._previous_simulations = sims.transpose((2, 0, 1))
+
+
 if __name__ == '__main__':
-    speckles = DynamicSpeckleSimulationsFromCircularSourceWithUniformCorrelation(600, 25, 200)
-    speckles.simulate()
-    print(speckles.previous_simulations.shape)
-    speckles.animate_previous_simulations("test.mp4", r'C:\Users\goubi\ffmpeg-5.0-essentials_build\bin\ffmpeg.exe')
-    speckles.animate_previous_simulations_histogram()
+    # speckles = DynamicSpeckleSimulationsFromCircularSourceWithUniformCorrelation(600, 25, 200)
+    # speckles.simulate()
+    # print(speckles.previous_simulations.shape)
+    # speckles.animate_previous_simulations("test.mp4", r'C:\Users\goubi\ffmpeg-5.0-essentials_build\bin\ffmpeg.exe')
+    # speckles.animate_previous_simulations_histogram()
+    speckles_2 = DynamicSpeckleSimulationsFromCircularSourceWithPupilMotion(1000, 50, 100, (0, 0), (200, 200))
+    speckles_2.simulate()
+    speckles_2.animate_previous_simulations()
