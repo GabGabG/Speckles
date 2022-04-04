@@ -4,7 +4,8 @@ import imageio
 import matplotlib.pyplot as plt
 import time
 from matplotlib.animation import ArtistAnimation, FuncAnimation
-import scipy.special as special
+import scipy.stats as stats
+from scipy.optimize import curve_fit
 
 plt.rcParams['animation.ffmpeg_path'] = r'C:\Users\goubi\ffmpeg-5.0-essentials_build\bin\ffmpeg.exe'
 
@@ -16,6 +17,24 @@ def cov(X, Y):
 
 
 if __name__ == '__main__':
+    shape = 10_000
+    vals = stats.expon.rvs(2, size=shape)
+    vals_2, bins, _ = plt.hist(vals, int(len(vals) ** .5), density=True)
+    x = np.linspace(np.min(vals), np.max(vals), int(len(vals) ** .5))
+    stuff = stats.expon.fit(vals)
+    beta = stuff[-1]
+    f = lambda x_, beta_: 1 / beta_ * np.exp(-x / beta_)
+    residuals = vals_2 - f(x, beta)
+    ss_res = np.sum(residuals ** 2)
+    ss_tot = np.sum((vals_2 - np.mean(vals_2)) ** 2)
+    r_squared = 1 - (ss_res / ss_tot)
+    print(r_squared)
+    lambda_ = 1 / beta
+    plt.plot(x, lambda_ * np.exp(-lambda_ * x), color="black")
+    plt.show()
+    stuff = stats.ks_1samp(vals, lambda x_: 1 - np.exp(-x / beta))
+    print(stuff)
+    exit()
     shape = (1000, 1000)
     radius = 50
     Y, X = np.indices(shape)
@@ -31,7 +50,7 @@ if __name__ == '__main__':
     ani.save("moving_pupil.mp4")
     plt.show()
     W = np.exp(-1j * np.random.uniform(-np.pi, np.pi, shape))
-    #W = np.broadcast_to(W, (nb, *shape)).transpose((1, 2, 0))
+    # W = np.broadcast_to(W, (nb, *shape)).transpose((1, 2, 0))
     f = lambda matrix, mask: np.abs(np.fft.ifft2(np.fft.fft2(matrix) * mask)) ** 2
     I_s = [f(W, masks[i]).real for i in range(nb)]
     I_s = [I_s[i] / np.max(I_s[i]) for i in range(len(I_s))]
@@ -54,7 +73,7 @@ if __name__ == '__main__':
     plt.scatter(pos_x / (radius * 2), rho_s, label="Coefficients de corrélation des speckles")
     msg = "Coefficients de corrélation (au carré) du mouvement de la pupille"
     plt.plot(pos_x / (radius * 2), np.power(rho_masks, 2), color="red", label=msg)
-    #bessel = special.b
+    # bessel = special.b
     plt.xlabel(r"Pupil position lag normalized to pupil diameter")
     plt.ylabel(r"Correlation coefficient $\rho(I_0, I_\tau)$")
     plt.legend()
