@@ -76,6 +76,16 @@ class SpeckleImageManipulations:
         """
         self._modified_image = self._modified_image[slice(*x_coords), slice(*y_coords)]
 
+    def centered_crop(self, width: int, height: int):
+        half_width = width / 2
+        half_height = height / 2
+        shape = self._modified_image.shape
+        x_start = shape[1] // 2 - np.ceil(half_width)
+        x_end = shape[1] // 2 + np.floor(half_width)
+        y_start = shape[0] // 2 - np.ceil(half_height)
+        y_end = shape[0] // 2 + np.floor(half_height)
+        self.crop((x_start, x_end), (y_start, y_end))
+
     def remove_background(self, background_image_path: str = None, background_image_as_array: np.ndarray = None):
         """
         Applied on modified image
@@ -191,14 +201,7 @@ class PeakMeasurementUtils:
             raise ValueError("`data_y` must be a 1-dimensional array.")
         self._data_x = data_x.copy()
         self._data_y = data_y.copy()
-        self._interpolated_data = interp1d(self._data_x, self._data_y, 'cubic', assume_sorted=True)
-
-    def show_data(self, with_interpolation: bool = True):
-        plt.plot(self._data_x, self._data_y, label="Data points")
-        if with_interpolation:
-            plt.plot(self._data_x, self._interpolated_data(self._data_x), label="Interpolation", linestyle="--")
-        plt.legend()
-        plt.show()
+        self._interpolated_data = interp1d(self._data_x, self._data_y, "cubic", assume_sorted=True)
 
     def find_FWHM(self, maximum: float = None):
         min_x = np.min(self._data_x)
