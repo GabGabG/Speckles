@@ -2,6 +2,7 @@ import numpy as np
 import imageio as imio
 import matplotlib.pyplot as plt
 import abc
+from typing import Type, Tuple, Dict
 
 
 # TODO : Shift before * mask
@@ -49,12 +50,12 @@ class StaticSpeckleSimulation(abc.ABC):
     def simulate(self):
         pass
 
-    def intensity_histogram(self, n_bins: int = 256):
+    def intensity_histogram(self, n_bins: int = 256, density: bool = True):
         if self._previous_simulation is None:
             raise ValueError("No simulation to extract intensity histogram.")
         if n_bins <= 0:
             raise ValueError("The number of bins for the histogram must be at least 1.")
-        values, bin_edges, _ = plt.hist(self._previous_simulation.ravel(), n_bins)
+        values, bin_edges, _ = plt.hist(self._previous_simulation.ravel(), n_bins, density=density)
         plt.show()
         return values, bin_edges
 
@@ -97,7 +98,7 @@ class SpeckleSimulationFromEllipsoidSource(StaticSpeckleSimulation):
     def simulate(self):
         mask = self._generate_ellipsoid_mask()
         sim_before_fft = self._generate_phases(-np.pi, np.pi)
-        sim = (np.abs(np.fft.ifft2(np.fft.fft2(sim_before_fft) * mask)) ** 2).real
+        sim = (np.abs(np.fft.ifft2(np.fft.ifftshift(np.fft.fftshift(np.fft.fft2(sim_before_fft)) * mask))) ** 2).real
         sim /= np.max(sim)
         self._previous_simulation = sim
 
@@ -188,6 +189,91 @@ class SpeckleSimulationFromCircularSourceWithPolarization(SpeckleSimulationFromC
         self._previous_simulation = first_part + second_part
 
 
+class PartiallyDevelopedSpeckleSimulation:
+
+    def __init__(self, base_speckle_sim_class: Type[StaticSpeckleSimulation], *class_args, **class_kwargs):
+        if not issubclass(base_speckle_sim_class, StaticSpeckleSimulation):
+            raise TypeError("`base_speckle_class` must be a type derived from `StaticSpeckleSimulation`.")
+        self._base_speckle_sim_class = base_speckle_sim_class(*class_args, **class_kwargs)
+        self._previous_simulation = None
+        self._means = None
+        self._cargs = class_args
+        self._ckwargs = class_kwargs
+
+    @property
+    def base_speckle_sim_class_and_args(self):
+        return self._base_speckle_sim_class, self._cargs, self._ckwargs
+
+    @base_speckle_sim_class_and_args.setter
+    def base_speckle_sim_class_and_args(self, class_args_kwargs: Tuple[Type[StaticSpeckleSimulation], Tuple, Dict]):
+        """
+        Arg format: (<class>, <args> (empty tuple if no args), <kwargs> (empty dict if no kwargs))
+        :param class_args_kwargs:
+        :return:
+        """
+        if len(class_args_kwargs) != 3:
+            msg = "There must be 3 elements in `class_args_kwargs`. The first one it the base class, the second is" \
+                  " a tuple of arguments for the creation of the base class (empty tuple if no args) and the last one" \
+                  " is a dictionary of keyword arguments (empty dictionary if no kwargs)."
+            raise ValueError(msg)
+        base_class = class_args_kwargs[0]
+        class_args = class_args_kwargs[1]
+        class_kwargs = class_args_kwargs[2]
+        if not issubclass(base_class, StaticSpeckleSimulation):
+            raise TypeError("The first argument must be a type derived from `StaticSpeckleSimulation`.")
+        if not isinstance(class_args, Tuple):
+            raise TypeError("The second argument must be a tuple of arguments (empty if no arguments).")
+        if not isinstance(class_kwargs, Dict):
+            raise TypeError("The third argument must be a dictionary of keyword arguments (empty if no kwarguments).")
+        self._base_speckle_sim_class = base_class
+        self._cargs = class_args
+        self._ckwargs = class_kwargs
+
+    @property
+    def previous_simulation(self):
+        if self._previous_simulation is None:
+            return None
+        return self._previous_simulation.copy()
+
+    @property
+    def previous_simulation_means(self):
+        if self._means is None:
+            return None
+        return self._means.copy()
+
+    def simulate(self, n_simulations_per_summation: int = 3, do_average: bool = False):
+        n = n_simulations_per_summation
+        sim_shape = self._base_speckle_sim_class.sim_shape
+        speckles = np.full((*sim_shape, n), np.nan)
+        means = np.full(n, np.nan)
+        for i in range(n_simulations_per_summation):
+            self._base_speckle_sim_class.simulate()
+            current_speckle = self._base_speckle_sim_class.previous_simulation
+            speckles[:, :, i] = current_speckle
+            means[i] = np.mean(current_speckle)
+        if do_average:
+            ret_speckles = np.mean(speckles, axis=-1)
+        else:
+            ret_speckles = np.sum(speckles, axis=-1)
+        self._previous_simulation = ret_speckles
+        self._means = means
+
+    def intensity_histogram(self, n_bins: int = 256, density: bool = True):
+        if self._previous_simulation is None:
+            raise ValueError("No simulation to extract intensity histogram.")
+        if n_bins <= 0:
+            raise ValueError("The number of bins for the histogram must be at least 1.")
+        values, bin_edges, _ = plt.hist(self._previous_simulation.ravel(), n_bins, density=density)
+        plt.show()
+        return values, bin_edges
+
+    def show_previous_simulation(self):
+        if self._previous_simulation is None:
+            raise ValueError("No simulation to show.")
+        plt.imshow(self._previous_simulation, "gray")
+        plt.show()
+
+
 class SpeckleSimulationsUtils:
 
     @staticmethod
@@ -237,3 +323,10 @@ if __name__ == '__main__':
     el.save_previous_simulation("test.tif")
     print(circ_diam)
     print(speckle_size)
+    base_class = SpeckleSimulationFromCircularSource
+    sim_shape = 1000
+    circle_diam = 100
+    part = PartiallyDevelopedSpeckleSimulation(base_class, sim_shape, circle_diam)
+    part.simulate(2)
+    part.show_previous_simulation()
+    part.intensity_histogram()
