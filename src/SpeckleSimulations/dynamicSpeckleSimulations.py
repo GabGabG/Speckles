@@ -76,7 +76,8 @@ class DynamicSpeckleSimulations(abc.ABC):
                 plt.rcParams['animation.ffmpeg_path'] = ffmpeg_encoder_path
             ani.save(savename)
 
-    def intensity_histogram(self, n_bins: int = 256, indices: Union[str, int, slice, Tuple, List, np.ndarray] = "all"):
+    def intensity_histogram(self, n_bins: int = 256, indices: Union[str, int, slice, Tuple, List, np.ndarray] = "all",
+                            density: bool = True):
         if self._previous_simulations is None:
             raise ValueError("No simulation to extract intensity histogram.")
         if n_bins <= 0:
@@ -85,21 +86,21 @@ class DynamicSpeckleSimulations(abc.ABC):
         all_values = []
         all_bin_edges = []
         for sim in sims:
-            values, bin_edges, _ = plt.hist(self._previous_simulations[sim, :, :].ravel(), n_bins)
+            values, bin_edges, _ = plt.hist(self._previous_simulations[sim, :, :].ravel(), n_bins, density=density)
             all_values.append(values)
             all_bin_edges.append(bin_edges)
             plt.show()
         return all_values, all_bin_edges
 
     def animate_previous_simulations_histogram(self, n_bins: int = 256, savename: str = None,
-                                               ffmpeg_encoder_path: str = None):
+                                               ffmpeg_encoder_path: str = None, density: bool = True):
         if self._previous_simulations is None:
             raise ValueError("No simulation to extract intensity histogram.")
         if n_bins <= 0:
             raise ValueError("The number of bins for the histogram must be at least 1.")
         dists = [self._previous_simulations[i, :, :].ravel() for i in range(self._n_time_steps)]
         fig, ax = plt.subplots()
-        n, bins, patches = ax.hist(dists[0], 256)
+        n, bins, patches = ax.hist(dists[0], n_bins, density=density)
         global previous_max_y, previous_max_x, previous_min_x
         previous_max_y = max(n)
         previous_max_x = max(bins)
@@ -110,7 +111,7 @@ class DynamicSpeckleSimulations(abc.ABC):
 
         def update_hist(i):
             ax.clear()
-            n, bins, patches = ax.hist(dists[i], 256)
+            n, bins, patches = ax.hist(dists[i], n_bins, density=density)
 
             current_max_y = max(n)
             current_max_x = max(bins)
@@ -211,7 +212,10 @@ class DynamicSpeckleSimulationsFromCircularSourceWithUniformCorrelation(DynamicS
         W = np.multiply.outer(M_1, self._r_s) + np.multiply.outer(M_2, np.sqrt(1 - self._r_s ** 2))
         mask = self._generate_circular_mask()
         masks = np.broadcast_to(mask, (self._n_time_steps, *mask.shape)).transpose((1, 2, 0))
-        sims = (np.abs(np.fft.ifft2(np.fft.fft2(W, axes=(0, 1)) * masks, axes=(0, 1))) ** 2).real
+        sims = (np.abs(
+            np.fft.ifft2(
+                np.fft.ifftshift(np.fft.fftshift(np.fft.fft2(W, axes=(0, 1)), axes=(0, 1)) * masks, axes=(0, 1)),
+                axes=(0, 1))) ** 2).real
         sims /= np.max(sims, (0, 1))
         self._previous_simulations = sims.transpose((2, 0, 1))
 
@@ -224,7 +228,7 @@ class DynamicSpeckleSimulationsFromCircularSourceWithBrownianMotion(DynamicSpeck
                                                                                             circle_diameter)
         if not (0 <= tau_min < tau_max):
             raise ValueError("`tau_min` must be between 0 and `tau_max` (`tau_max` excluded).")
-        if not (tau_min < tau_max <= 1):
+        if not (tau_min < tau_max):
             raise ValueError("`tau_max` must be greater than `tau_min`(`tau_min` excluded).")
         if tau_c <= 0:
             raise ValueError("`tau_c` must be strictly positive.")
@@ -277,7 +281,10 @@ class DynamicSpeckleSimulationsFromCircularSourceWithBrownianMotion(DynamicSpeck
         W = np.multiply.outer(M_1, self._r_s) + np.multiply.outer(M_2, np.sqrt(1 - self._r_s ** 2))
         mask = self._generate_circular_mask()
         masks = np.broadcast_to(mask, (self._n_time_steps, *mask.shape)).transpose((1, 2, 0))
-        sims = (np.abs(np.fft.ifft2(np.fft.fft2(W, axes=(0, 1)) * masks, axes=(0, 1))) ** 2).real
+        sims = (np.abs(
+            np.fft.ifft2(
+                np.fft.ifftshift(np.fft.fftshift(np.fft.fft2(W, axes=(0, 1)), axes=(0, 1)) * masks, axes=(0, 1)),
+                axes=(0, 1))) ** 2).real
         sims /= np.max(sims, (0, 1))
         self._previous_simulations = sims.transpose((2, 0, 1))
 
@@ -351,17 +358,164 @@ class DynamicSpeckleSimulationsFromCircularSourceWithPupilMotion(DynamicSpeckleS
         masks = self._generate_circular_masks()
         W = self._generate_phases(-np.pi, np.pi)
         W = np.broadcast_to(W, (self._n_time_steps, *W.shape)).transpose((1, 2, 0))
-        sims = (np.abs(np.fft.ifft2(np.fft.fft2(W, axes=(0, 1)) * masks, axes=(0, 1))) ** 2).real
+        sims = (np.abs(
+            np.fft.ifft2(
+                np.fft.ifftshift(np.fft.fftshift(np.fft.fft2(W, axes=(0, 1)), axes=(0, 1)) * masks, axes=(0, 1)),
+                axes=(0, 1))) ** 2).real
         sims /= np.max(sims, (0, 1))
         self._previous_simulations = sims.transpose((2, 0, 1))
 
 
+class DynamicSpeckleSimulationsPartiallyDeveloped:
+
+    def __init__(self, base_simulations: DynamicSpeckleSimulations):
+        self._base_simulations = base_simulations
+        self._previous_simulations = None
+
+    @property
+    def previous_simulations(self):
+        if self._previous_simulations is None:
+            return None
+        return self._previous_simulations.copy()
+
+    def simulate(self, n_simulations_per_summation: int = 3, do_average: bool = False):
+        if n_simulations_per_summation < 2:
+            raise ValueError("The number of simulations per summation must be at least 2.")
+        if self._base_simulations.previous_simulations is None:
+            self._base_simulations.simulate()
+        n = n_simulations_per_summation
+        print(f"base previous shape : {self._base_simulations.previous_simulations.shape}")
+        if do_average:
+            simulations = [np.mean(self._base_simulations.previous_simulations[i:i + n, :, :], axis=0) for i in
+                           range(0, self._base_simulations.time_steps, n)]
+        else:
+            simulations = [np.sum(self._base_simulations.previous_simulations[i:i + n, :, :], axis=0) for i in
+                           range(0, self._base_simulations.time_steps, n)]
+        self._previous_simulations = np.stack(simulations, 0)
+
+    def save_previous_simulations(self, filepath: str,
+                                  indices: Union[str, int, slice, Tuple, List, np.ndarray] = "all"):
+        if self._previous_simulations is None:
+            raise ValueError("No simulation to save.")
+        if indices == "all":
+            sims_to_save = self._previous_simulations
+        else:
+            sims = self._get_specific_indices(indices)
+            sims_to_save = self._previous_simulations[sims, :, :]
+        if "." not in filepath:
+            filepath += ".tiff"
+        imio.mimwrite(filepath, sims_to_save)
+
+    def show_previous_simulations(self, indices: Union[str, int, slice, Tuple, List, np.ndarray] = "all"):
+        if self._previous_simulations is None:
+            raise ValueError("No simulation to show.")
+        sims = self._get_specific_indices(indices)
+        for sim in sims:
+            plt.imshow(self._previous_simulations[sim, :, :], cmap="gray")
+            plt.show()
+
+    def animate_previous_simulations(self, savename: str = None, ffmpeg_encoder_path: str = None):
+        # TODO: save with other than pyplot (this saves with the borders and the ticks!)
+        fig, ax = plt.subplots()
+        ims = [[ax.imshow(self._previous_simulations[i, :, :], cmap="gray")] for i in
+               range(self._previous_simulations.shape[0])]
+        ani = ArtistAnimation(fig, ims, interval=50, blit=True, repeat=False)
+        plt.show()
+        if savename is not None:
+            if ffmpeg_encoder_path is not None:
+                plt.rcParams['animation.ffmpeg_path'] = ffmpeg_encoder_path
+            ani.save(savename)
+
+    def intensity_histogram(self, n_bins: int = 256, indices: Union[str, int, slice, Tuple, List, np.ndarray] = "all",
+                            density: bool = True):
+        if self._previous_simulations is None:
+            raise ValueError("No simulation to extract intensity histogram.")
+        if n_bins <= 0:
+            raise ValueError("The number of bins for the histogram must be at least 1.")
+        sims = self._get_specific_indices(indices)
+        all_values = []
+        all_bin_edges = []
+        for sim in sims:
+            values, bin_edges, _ = plt.hist(self._previous_simulations[sim, :, :].ravel(), n_bins, density=density)
+            all_values.append(values)
+            all_bin_edges.append(bin_edges)
+            plt.show()
+        return all_values, all_bin_edges
+
+    def animate_previous_simulations_histogram(self, n_bins: int = 256, savename: str = None,
+                                               ffmpeg_encoder_path: str = None, density: bool = True):
+        if self._previous_simulations is None:
+            raise ValueError("No simulation to extract intensity histogram.")
+        if n_bins <= 0:
+            raise ValueError("The number of bins for the histogram must be at least 1.")
+        dists = [self._previous_simulations[i, :, :].ravel() for i in range(self._previous_simulations.shape[0])]
+        fig, ax = plt.subplots()
+        n, bins, patches = ax.hist(dists[0], n_bins, density=density)
+        global previous_max_y, previous_max_x, previous_min_x
+        previous_max_y = max(n)
+        previous_max_x = max(bins)
+        previous_min_x = min(bins)
+        ax.set_ylim(top=previous_max_y)
+        ax.set_xlim(previous_min_x - 0.5 * np.abs(previous_min_x), previous_max_x + 0.5 * np.abs(previous_min_x))
+        ax.set_title(f"Histogram of time step {0}")
+
+        def update_hist(i):
+            ax.clear()
+            n, bins, patches = ax.hist(dists[i], n_bins, density=density)
+
+            current_max_y = max(n)
+            current_max_x = max(bins)
+            current_min_x = min(bins)
+            global previous_max_y, previous_max_x, previous_min_x
+            if current_max_y > previous_max_y:
+                previous_max_y = current_max_y
+            if current_max_x > previous_max_x:
+                previous_max_x = current_max_x
+            if current_min_x < previous_min_x:
+                previous_min_x = current_min_x
+            ax.set_ylim(top=previous_max_y)
+            ax.set_xlim(previous_min_x - 0.5 * np.abs(previous_min_x), previous_max_x + 0.5 * np.abs(previous_min_x))
+            ax.set_title(f"Histogram of time step {i}")
+            return patches  # .patches
+
+        ani = FuncAnimation(fig, update_hist, frames=self._previous_simulations.shape[0], blit=False, repeat=False)
+        plt.show()
+        if savename is not None:
+            if ffmpeg_encoder_path is not None:
+                plt.rcParams['animation.ffmpeg_path'] = ffmpeg_encoder_path
+            ani.save(savename)
+
+    def _get_specific_indices(self, indices: Union[str, int, slice, Tuple, List, np.ndarray] = "all"):
+        if indices == "all":
+            sims = range(self._previous_simulations.shape[0])
+        elif isinstance(indices, int):
+            sims = [indices]
+        elif isinstance(indices, slice):
+            sims = range(indices.start, indices.stop, indices.step)
+        elif isinstance(indices, (Tuple, List, np.ndarray)):
+            sims = indices
+        else:
+            raise ValueError(f"Parameter `{indices}` is not recognized.")
+        return sims
+
+
 if __name__ == '__main__':
-    # speckles = DynamicSpeckleSimulationsFromCircularSourceWithUniformCorrelation(600, 25, 200)
-    # speckles.simulate()
-    # print(speckles.previous_simulations.shape)
-    # speckles.animate_previous_simulations("test.mp4", r'C:\Users\goubi\ffmpeg-5.0-essentials_build\bin\ffmpeg.exe')
-    # speckles.animate_previous_simulations_histogram()
-    speckles_2 = DynamicSpeckleSimulationsFromCircularSourceWithPupilMotion(1000, 50, 100, (0, 0), (200, 200))
-    speckles_2.simulate()
-    speckles_2.animate_previous_simulations()
+    speckles = DynamicSpeckleSimulationsFromCircularSourceWithUniformCorrelation(600, 50, 50)
+    speckles.simulate()
+
+    speckles2 = DynamicSpeckleSimulationsFromCircularSourceWithBrownianMotion(600, 50, 50, 0, 1.85, 0.37)
+    speckles2.simulate()
+
+    part = DynamicSpeckleSimulationsPartiallyDeveloped(speckles)
+    part.simulate(10)
+    sims = part.previous_simulations
+    print(sims.shape)
+    part.animate_previous_simulations()
+    part.animate_previous_simulations_histogram()
+
+    part = DynamicSpeckleSimulationsPartiallyDeveloped(speckles2)
+    part.simulate(10)
+    sims = part.previous_simulations
+    print(sims.shape)
+    part.animate_previous_simulations()
+    part.animate_previous_simulations_histogram()
