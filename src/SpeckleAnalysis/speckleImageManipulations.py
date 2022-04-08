@@ -1,10 +1,10 @@
 import imageio as imio
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
-from scipy.optimize import root_scalar, bisect
+from scipy.optimize import root_scalar
 from scipy.ndimage import gaussian_filter, median_filter
 from typing import Tuple, Callable
+from scipy.signal import convolve2d
 
 
 class SpeckleImageReader:
@@ -16,7 +16,7 @@ class SpeckleImageReader:
         im = imio.mimread(self._filepath)
         if len(im) == 1:
             return im[0]
-        return im
+        return np.dstack(im)
 
 
 class SpeckleImageManipulations:
@@ -140,6 +140,17 @@ class SpeckleImageManipulations:
         :return:
         """
         self._modified_image = func(self._modified_image, *fargs, **fkwargs)
+
+    def compute_local_constrast(self, kernel_size: int = 7):
+        if kernel_size < 2:
+            raise ValueError("The size of the local contrast kernel must be at least 2.")
+        kernel = np.ones((kernel_size, kernel_size))
+        n = kernel.size
+        temp_image = self._modified_image.astype(float)
+        windowed_avg = convolve2d(temp_image, kernel, "valid") / n
+        squared_image_filter = convolve2d(temp_image ** 2, kernel, "valid")
+        std_image_windowed = ((squared_image_filter - n * windowed_avg ** 2) / (n - 1)) ** 0.5
+        return std_image_windowed / windowed_avg
 
     def do_autocorrelation(self):
         self._autocorrelation_obj = AutocorrelationUtils(self._modified_image)
