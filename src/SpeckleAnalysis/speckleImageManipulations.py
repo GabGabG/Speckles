@@ -6,6 +6,7 @@ from scipy.optimize import root_scalar
 from scipy.ndimage import gaussian_filter, median_filter
 from typing import Tuple, Callable
 from scipy.signal import convolve2d
+import scipy.stats as stats
 
 
 class SpeckleImageReader:
@@ -182,6 +183,28 @@ class SpeckleImageManipulations:
         v_speckle_size = PeakMeasurementUtils(data_x_v, v_slice).find_FWHM()
         return h_speckle_size, v_speckle_size
 
+    def speckle_developedness(self, n_bins_histogram: int = 256, show_fits: bool = True):
+        data = np.ravel(self._modified_image)
+        exponential_fit_args = stats.expon.fit(data, floc=0)
+        gamma_fit_args = stats.gamma.fit(data, floc=0)
+        n_data, bins, _ = plt.hist(data, n_bins_histogram, None, True, label="Speckle intensity")
+        x_data = (bins[:-1] + bins[1:]) / 2
+        res_kstest_exponential = stats.ks_1samp(data, stats.expon.cdf, args=exponential_fit_args)
+        res_kstest_gamma = stats.ks_1samp(data, stats.gamma.cdf, args=gamma_fit_args)
+        plt.plot(x_data, stats.expon.pdf(x_data, *exponential_fit_args), color="green", linestyle="--",
+                 label=f"Exponential fit\nParameters : {exponential_fit_args}")
+        plt.plot(x_data, stats.gamma.pdf(x_data, *gamma_fit_args), color="red", linestyle=":",
+                 label=f"Gamma fit\nParameters : {gamma_fit_args}")
+        plt.legend()
+        plt.xlabel("Intensity value [-]")
+        plt.ylabel("Frequency [-]")
+        if show_fits:
+            plt.show()
+        else:
+            plt.clf()
+        return {"Exponential fit": dict(zip(["Test value", "P-value"], res_kstest_exponential)),
+                "Gamma fit": dict(zip(["Test value", "P-value"], res_kstest_gamma))}
+
 
 class AutocorrelationUtils:
 
@@ -251,3 +274,4 @@ if __name__ == '__main__':
     plt.imshow(autocrr)
     plt.show()
     print(sp.get_speckle_sizes())  # Should be around 10 and 4
+    print(sp.speckle_developedness())
