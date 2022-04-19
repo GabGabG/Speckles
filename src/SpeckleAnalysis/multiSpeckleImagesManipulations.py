@@ -246,10 +246,4 @@ class PeakMeasurementsUtils:
 
 
 if __name__ == '__main__':
-    path = r"C:\Users\goubi\Documents\GitHub\Speckles\src\SpeckleSimulations\test_multi_tiff.tiff"
-    m = MultiSpeckleImagesManipulations(images_path=path)
-    m.do_autocorrelations()
-    print(m.get_speckle_sizes())
-    slices_h, slices_v = m.access_autocorrelation_slices()
-    plt.plot(slices_h[0])
-    plt.show()
+    pass
