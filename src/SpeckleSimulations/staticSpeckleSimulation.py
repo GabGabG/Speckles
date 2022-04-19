@@ -5,8 +5,6 @@ import abc
 from typing import Type, Tuple, Dict
 
 
-# TODO : Shift before * mask
-
 class StaticSpeckleSimulation(abc.ABC):
 
     def __init__(self, sim_shape: int):
@@ -99,6 +97,7 @@ class SpeckleSimulationFromEllipsoidSource(StaticSpeckleSimulation):
         mask = self._generate_ellipsoid_mask()
         sim_before_fft = self._generate_phases(-np.pi, np.pi)
         sim = (np.abs(np.fft.ifft2(np.fft.ifftshift(np.fft.fftshift(np.fft.fft2(sim_before_fft)) * mask))) ** 2).real
+        sim = np.clip(sim, 0, None)
         sim /= np.max(sim)
         self._previous_simulation = sim
 
@@ -313,20 +312,36 @@ class SpeckleSimulationsUtils:
 
 
 if __name__ == '__main__':
-    circ_diam = SpeckleSimulationsUtils.circle_diameter_for_specific_speckle_size(1000, 4)
-    speckle_size = SpeckleSimulationsUtils.speckle_size_from_circle_diameter(1000, 250)
-    el = SpeckleSimulationFromEllipsoidSource(1000,
-                                              *SpeckleSimulationsUtils.ellipse_diameters_for_specific_speckle_sizes(
-                                                  1000, 4, 10))
-    el.simulate()
-    el.show_previous_simulation()
-    el.save_previous_simulation("test.tif")
-    print(circ_diam)
-    print(speckle_size)
-    base_class = SpeckleSimulationFromCircularSource
-    sim_shape = 1000
-    circle_diam = 100
-    part = PartiallyDevelopedSpeckleSimulation(base_class, sim_shape, circle_diam)
-    part.simulate(2)
-    part.show_previous_simulation()
-    part.intensity_histogram()
+    # circ_diam = SpeckleSimulationsUtils.circle_diameter_for_specific_speckle_size(1000, 4)
+    # speckle_size = SpeckleSimulationsUtils.speckle_size_from_circle_diameter(1000, 250)
+    # el = SpeckleSimulationFromEllipsoidSource(1000,
+    #                                           *SpeckleSimulationsUtils.ellipse_diameters_for_specific_speckle_sizes(
+    #                                               1000, 4, 10))
+    # el.simulate()
+    # el.show_previous_simulation()
+    # el.save_previous_simulation("test.tif")
+    # print(circ_diam)
+    # print(speckle_size)
+    # base_class = SpeckleSimulationFromCircularSource
+    # sim_shape = 1000
+    # circle_diam = 100
+    # part = PartiallyDevelopedSpeckleSimulation(base_class, sim_shape, circle_diam)
+    # part.simulate(2)
+    # part.show_previous_simulation()
+    # part.intensity_histogram()
+
+    def pol_intensity(x, data, pol_degree):
+        mean = np.mean(data)
+        return 1 / (pol_degree * mean) * (
+                np.exp(-2 / (1 + pol_degree) * x / mean) - np.exp(-2 / (1 - pol_degree) * x / mean))
+
+
+    pol_deg = 0.001
+    pol = SpeckleSimulationFromCircularSourceWithPolarization(1000, 100, pol_deg)
+    pol.simulate()
+    pol.show_previous_simulation()
+    sim = pol.previous_simulation
+    _, x = pol.intensity_histogram()
+    x = (x[:-1] + x[1:]) / 2
+    plt.plot(x, pol_intensity(x, np.ravel(sim), pol_deg), color="red", linestyle="--")
+    pol.intensity_histogram()
