@@ -1,4 +1,5 @@
 import imageio as imio
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.optimize import root_scalar
@@ -117,7 +118,8 @@ class SpeckleImageManipulations:
             raise ValueError(msg)
         if filter_std_dev > 0:
             filtered_image = gaussian_filter(self._modified_image, filter_std_dev)
-            self._modified_image = self._modified_image / filtered_image - np.mean(self._modified_image)
+            self._modified_image = np.clip(self._modified_image / filtered_image - np.mean(self._modified_image), 0,
+                                           None)
 
     def apply_median_filter(self, filter_size: int = 3):
         """
@@ -140,6 +142,15 @@ class SpeckleImageManipulations:
         :return:
         """
         self._modified_image = func(self._modified_image, *fargs, **fkwargs)
+
+    def compute_global_contrast(self):
+        return np.std(self._modified_image) / np.mean(self._modified_image)
+
+    def compute_michelson_contrast(self):
+        min_, max_ = np.min(self._modified_image), np.max(self._modified_image)
+        top = max_ - min_
+        bottom = max_ + min_
+        return top / bottom
 
     def compute_local_constrast(self, kernel_size: int = 7):
         if kernel_size < 2:
@@ -233,4 +244,10 @@ if __name__ == '__main__':
     path = r"../SpeckleSimulations/test.tif"
     sp = SpeckleImageManipulations(path)
     sp.do_autocorrelation()
+    image = sp.modified_image
+    plt.imshow(image, cmap="gray")
+    plt.show()
+    autocrr = sp.autocorrelation
+    plt.imshow(autocrr)
+    plt.show()
     print(sp.get_speckle_sizes())  # Should be around 10 and 4
