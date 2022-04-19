@@ -7,8 +7,6 @@ from matplotlib.animation import ArtistAnimation, FuncAnimation
 import warnings
 
 
-# TODO: Shift before * masks
-
 class DynamicSpeckleSimulations(abc.ABC):
 
     def __init__(self, sim_shape: int, n_time_steps: int = 500):
@@ -18,7 +16,7 @@ class DynamicSpeckleSimulations(abc.ABC):
             raise ValueError("There must be at least 2 time steps for a dynamic speckle pattern.")
         self._sim_shape = (sim_shape, sim_shape)
         self._n_time_steps = n_time_steps
-        self._previous_simulations = None
+        self._previous_simulations: np.ndarray = None
 
     @property
     def previous_simulations(self):
@@ -362,6 +360,7 @@ class DynamicSpeckleSimulationsFromCircularSourceWithPupilMotion(DynamicSpeckleS
             np.fft.ifft2(
                 np.fft.ifftshift(np.fft.fftshift(np.fft.fft2(W, axes=(0, 1)), axes=(0, 1)) * masks, axes=(0, 1)),
                 axes=(0, 1))) ** 2).real
+        sims = np.clip(sims, 0, None)
         sims /= np.max(sims, (0, 1))
         self._previous_simulations = sims.transpose((2, 0, 1))
 
@@ -500,22 +499,32 @@ class DynamicSpeckleSimulationsPartiallyDeveloped:
 
 
 if __name__ == '__main__':
-    speckles = DynamicSpeckleSimulationsFromCircularSourceWithUniformCorrelation(600, 50, 50)
+    def corr(X, Y):
+        X = np.ravel(X)
+        Y = np.ravel(Y)
+        return np.mean((X - np.mean(X)) * (Y - np.mean(Y))) / (np.std(X) * np.std(Y))
+
+    speckles = DynamicSpeckleSimulationsFromCircularSourceWithUniformCorrelation(600, 100, 50)
     speckles.simulate()
-
-    speckles2 = DynamicSpeckleSimulationsFromCircularSourceWithBrownianMotion(600, 50, 50, 0, 1.85, 0.37)
-    speckles2.simulate()
-
-    part = DynamicSpeckleSimulationsPartiallyDeveloped(speckles)
-    part.simulate(10)
-    sims = part.previous_simulations
-    print(sims.shape)
-    part.animate_previous_simulations()
-    part.animate_previous_simulations_histogram()
-
-    part = DynamicSpeckleSimulationsPartiallyDeveloped(speckles2)
-    part.simulate(10)
-    sims = part.previous_simulations
-    print(sims.shape)
-    part.animate_previous_simulations()
-    part.animate_previous_simulations_histogram()
+    simulations = speckles.previous_simulations
+    speckles.animate_previous_simulations()
+    im1 = simulations[-2, :, :]
+    im2 = simulations[-1, :, :]
+    speckled_speckles = im1 + im2
+    correlation = corr(im1, im2)
+    print(correlation)
+    im1_mean = np.mean(im1)
+    im2_mean = np.mean(im2)
+    row_1 = [im1_mean, np.sqrt(im1_mean * im2_mean) * correlation ** .5]
+    row_2 = [np.sqrt(im1_mean * im2_mean) * correlation ** .5, im2_mean]
+    coherence_matrix = np.vstack([row_1, row_2])
+    eigenvals = np.linalg.eigvals(coherence_matrix)
+    print(eigenvals)
+    def prob_density(x):
+        part1 = np.exp(-x/eigenvals[0]) / (eigenvals[0] - eigenvals[1])
+        part2 = np.exp(-x/eigenvals[1]) / (eigenvals[0] - eigenvals[1])
+        return part1 - part2
+    vals, bins, _ = plt.hist(speckled_speckles.ravel(), 256, density=True)
+    x_s = (bins[:-1] + bins[1:]) / 2
+    plt.plot(x_s, prob_density(x_s), color="red", linestyle="--")
+    plt.show()
