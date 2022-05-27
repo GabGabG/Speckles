@@ -258,10 +258,6 @@ class PeakMeasurementUtils:
         def func(inner_func_x):
             return self._interpolated_data(inner_func_x) - half_max
 
-        x = np.linspace(min_x, max_x, 1000)
-        plt.plot(x, func(x))
-        plt.show()
-
         left_root = root_scalar(func, bracket=(min_x, other_bound)).root
         right_root = root_scalar(func, bracket=(other_bound, max_x)).root
         return right_root - left_root
@@ -269,24 +265,6 @@ class PeakMeasurementUtils:
 
 if __name__ == '__main__':
     from scipy.stats import ks_1samp, anderson, expon, gamma
-
-    path = r"C:\Users\goubi\Desktop\debut.png"
-    path2 = r"C:\Users\goubi\Desktop\fin.png"
-    a = imio.imread(path)
-    speckles = a[:, :, 0] / 255
-    sp_manip = SpeckleImageManipulations(None, speckles)
-    sp_manip.do_autocorrelation()
-    plt.imshow(sp_manip.autocorrelation)
-    plt.show()
-    plt.plot(sp_manip.access_autocorrelation_slices()[0])
-    plt.show()
-    print(sp_manip.get_speckle_sizes())
-    a = imio.imread(path2)
-    speckles = a[:, :, 0] / 255
-    sp_manip = SpeckleImageManipulations(None, speckles)
-    sp_manip.do_autocorrelation()
-    print(sp_manip.get_speckle_sizes())
-    exit()
 
 
     # from scipy.special import gamma
@@ -333,48 +311,61 @@ if __name__ == '__main__':
     speckles_1d = speckles.ravel()
     sp = SpeckleImageManipulations(None, speckles)
     sp.do_autocorrelation()
-    plt.imshow(speckles, cmap="gray")
-    plt.show()
     print(sp.get_speckle_sizes())
-    nb_bins = 2
-    binned_speckles = rebin(speckles, (nb_bins, nb_bins))
-    sp = SpeckleImageManipulations(None, binned_speckles)
-    sp.do_autocorrelation()
-    plt.imshow(binned_speckles, cmap="gray")
-    plt.show()
-    try:
-        print(sp.get_speckle_sizes())
-    except Exception:
-        print("Speckle size not computed")
-    intensity_base = speckles.ravel()
-    intensity_binned = binned_speckles.ravel()
-    plt.hist(intensity_base, int(len(intensity_base) ** 0.5), density=True,
-             label="Sans binning", histtype="step", linestyle="--")
-    data, x_bins, _ = plt.hist(intensity_binned, int(len(intensity_binned) ** 0.5), density=True, histtype="step",
-                               linestyle=":", label="Avec binning")
-    plt.legend()
-    plt.xlabel("Intensité [-]")
-    plt.ylabel(r"$P_I(I)$ [-]")
-    plt.show()
+    for nbins in [1000, 500, 250, 100, 50, 25, 10, 4, 1]:
+        print(f"=========={nbins}==========")
+        fig, (ax1, ax2, ax3) = plt.subplots(1, 3)
+        ax1.imshow(speckles, cmap="gray")
+        nb_bins = nbins
+        binned_speckles = rebin(speckles, (nb_bins, nb_bins))
+        sp = SpeckleImageManipulations(None, binned_speckles)
+        sp.do_autocorrelation()
+
+        ax2.imshow(binned_speckles, cmap="gray")
+        try:
+            print(sp.get_speckle_sizes())
+        except Exception:
+            print("Speckle size cannot be computed")
+        intensity_base = speckles.ravel()
+        intensity_binned = binned_speckles.ravel()
+        ax3.hist(intensity_base, int(len(intensity_base) ** 0.5), density=True,
+                 label="Sans binning", histtype="step", linestyle="--")
+        data, x_bins, _ = ax3.hist(intensity_binned, int(len(intensity_binned) ** 0.5), density=True, histtype="step",
+                                   linestyle=":", label="Avec binning")
+        x = (x_bins[:-1] + x_bins[1:]) / 2
 
 
-    def exponential_fit(data):
-        return expon.fit(data, floc=0)
+        def exponential_fit(data):
+            return expon.fit(data, floc=0)
 
 
-    def gamma_fit(data):
-        return gamma.fit(data, floc=0)
+        def gamma_fit(data):
+            return gamma.fit(data, floc=0)
 
 
-    def gamma_cdf(x, n, loc, theta):
-        return gamma.cdf(x, n, scale=theta, loc=loc)
+        def gamma_cdf(x, n, loc, theta):
+            return gamma.cdf(x, n, scale=theta, loc=loc)
 
 
-    def exponential_cdf(x, loc, scale):
-        return expon.cdf(x, scale=scale, loc=loc)
+        def exponential_cdf(x, loc, scale):
+            return expon.cdf(x, scale=scale, loc=loc)
 
 
-    print(gamma_fit(intensity_binned))
+        gamma_fit_arg = gamma_fit(intensity_binned)
+        m = np.mean(intensity_binned) ** 2 / np.var(intensity_binned)
+        print(m)
+        print(np.mean(intensity_binned) / m)
+        print(gamma_fit_arg)
+        if not any(np.isnan(gamma_fit_arg)):
+            ax3.plot(x, gamma.pdf(x, *gamma_fit_arg), color="green", label="Gamma fit on binned data", alpha=0.75)
+
+        plt.legend()
+        ax1.set_title("Original image 1000 x 1000")
+        ax2.set_title(f"Binned image {nb_bins} x {nb_bins}")
+        ax3.set_title("Intensity histograms")
+        ax3.set_xlabel("Intensité [-]")
+        ax3.set_ylabel(r"$P_I(I)$ [-]")
+        plt.show()
     exit()
     gamma_args_base = gamma_fit(intensity_base)
     expon_args_base = exponential_fit(intensity_base)
