@@ -11,11 +11,23 @@ from scipy.optimize import root_scalar
 #TODO: Rework everything!
 
 class SpeckleMovieReader:
+    """
+    Class used to read movie files. This should be somewhere else.
+    """
 
     def __init__(self, filepath: str):
+        """
+        Initializer of the class.
+        :param filepath: File path to the movie we want to read / load.
+        """
         self._filepath = filepath
 
     def read(self):
+        """
+        Method used to read the specified file. Nothing is read otherwise.
+        :return: A stack of frames. The shape is (N,M,S), where N is the height of the images, M is the width and S is
+        the number of images.
+        """
         video = cv2.VideoCapture(self._filepath)
         stack = []
         while True:
@@ -29,9 +41,28 @@ class SpeckleMovieReader:
 
 
 class MultiSpeckleImagesManipulations:
+    """
+    Class used to manipulate multiple speckle images at the same time. Maybe this should be merged with
+    `SpeckleImageManipulations`? (the single image version)
+    """
 
     def __init__(self, movie_path: str = None, images_path: str = None, images_from_array: np.ndarray = None,
                  images_name: str = None, stack_order: str = "dhw"):
+        """
+        Initializer of the class.
+        :param movie_path: str. Path leading to the movie we want to read. Cannot be used with `images_path` and
+        `images_from_array`.
+        :param images_path: str. Path leading to the images file (like a Tiff with multiple pages). Cannot be used with
+        `movie_path` and `images_from_array`.
+        :param images_from_array: np.ndarray. NumPy array containing the images (pixels are the values). Cannot be used
+        with `movie_path` and `images_path`.
+        :param images_name: str. Name of the stack of images. TODO: should be a list of str?
+        :param stack_order: str. Order of the images stack. Can be:
+         - 'dhw' for depth, height, width (depth being the first dimension, the number of images) (default)
+         - 'whd' for width, height, depth.
+         - 'hwd' for height, width, depth. This is the format used internally. Everything else is transposed.
+        Any other string raises an error.
+        """
         c1 = movie_path is None and images_path is None and images_from_array is None
         c2 = movie_path is not None and images_path is not None
         c3 = movie_path is not None and images_from_array is not None
@@ -62,38 +93,93 @@ class MultiSpeckleImagesManipulations:
 
     @property
     def original_images(self):
+        """
+        Getter of the original unmodified images (copy). It returns a copy, because otherwise any modification by the
+        user would translate to modification inside the object. This is an arbitrary choice, it may change.
+        :return: A copy of the original unmodified images.
+        """
         return self._original_images.copy()
 
     @property
     def modified_images(self):
+        """
+        Getter of the modified images (copy). It returns a copy, because otherwise any modification by the
+        user would translate to modification inside the object. This is an arbitrary choice, it may change.
+        :return: A copy of the modified images.
+        """
         return self._modified_images.copy()
 
     @property
     def autocorrelations(self):
+        """
+        Getter of the autocorrelation stack of the images as a copy. We really don't want this to be modified.
+        :return: A copy of the autocorrelation stack of the images.
+        """
         if self._autocorrelations_obj is None:
             return None
         return self._autocorrelations_obj.autocorrelations
 
     @property
     def images_path(self):
+        """
+        Path leading to the original movie or images if one of them is not `None`. Otherwise, it returns `None`.
+        :return: The path leading to the images (movie or images file). Can be `None`.
+        """
         return self._images_path
 
     @property
     def images_name(self):
+        """
+        Getter of the name of the images (if provided).
+        :return: The name of the images. Can be `None`.
+        """
         return self._images_name
 
     @images_name.setter
-    def image_name(self, new_name: str):
+    def images_name(self, new_name: str):
+        """
+        Setter of the name of the images.
+        :param new_name: New name for the images.
+        :return: Nothing.
+        """
         self._images_name = new_name
 
     def restore_original_images(self):
+        """
+        Method used to restore the original images as the current ones we want to work on. Replaces any internally
+        modified image with the original.
+        :return: Nothing.
+        """
         self._modified_images = self._original_images.copy()
 
     def crop(self, x_coords: Tuple[int, int] = (None, None), y_coords: Tuple[int, int] = (None, None),
              depth_coords: Tuple[int, int] = (None, None)):
+        """
+        Method used to crop the current modified images (images worked on). Cropping can be horizontal, vertical and
+        in depth (removing images from the stack). For example:
+        ```python
+        images.crop((10, -10), (10, -10), (0, 5))
+        ```
+        will remove the first and last 10 pixels horizontally and vertically (we keep from 10 to width - 10 and
+        height - 10), as well as only keeping the first 5 frames.
+        :param x_coords: Tuple of integers. Bounds of indices of pixels to keep horizontally (first is 0). Upper bound
+        is excluded.
+        :param y_coords: Tuple of integers. Bounds of indices of pixels to keep vertically (first is 0). Upper bound is
+        excluded.
+        :param depth_coords: Tuple of integers. Bounds of indices of images to keep (first is 0). Upper bound is
+        excluded.
+        :return: Nothing.
+        """
         self._modified_images = self._modified_images[slice(*y_coords), slice(*x_coords), slice(*depth_coords)]
 
     def centered_crop(self, width: int, height: int, depth: int):
+        """
+        Method used to crop around the center of the stack.
+        :param width: int. New width of the stack (second dimension).
+        :param height: int. New height of the stack (first dimension).
+        :param depth: int. New depth of the stack (last dimension).
+        :return: Nothing.
+        """
         half_width = width / 2
         half_height = height / 2
         half_depth = depth / 2
@@ -196,7 +282,7 @@ class AutocorrelationsUtils:
     def autocorrelations(self):
         if self._autocorrelations is None:
             return None
-        return self._autocorrelations
+        return self._autocorrelations.copy()
 
     def autocorrelate(self):
         ffts = np.fft.fft2(self._speckle_images, axes=(0, 1))
