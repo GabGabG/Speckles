@@ -8,6 +8,7 @@ from scipy.signal import convolve2d
 from scipy.interpolate import interp1d
 from scipy.optimize import root_scalar
 
+#TODO: Rework everything!
 
 class SpeckleMovieReader:
 
@@ -243,7 +244,3 @@ class PeakMeasurementsUtils:
         right_roots = [root_scalar(func, (i,), bracket=(other_bounds[i], maxs_x[i])).root for i in
                        range(len(self._interpolations))]
         return np.subtract(right_roots, left_roots)
-
-
-if __name__ == '__main__':
-    pass
