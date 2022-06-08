@@ -197,6 +197,15 @@ class MultiSpeckleImagesManipulations:
         pass
 
     def apply_gaussian_normalization(self, filter_std_dev: float = 0):
+        """
+        Method used to normalize images when the illumination is not uniform and follows a gaussian function. This is
+        perhaps not the best way to normalize as it can affect the contrast and the speckle size, but it can be good
+        when we want to uniformize the intensity. A better way would be to normalize with a uniform image taken without
+        speckles.
+        :param filter_std_dev: float. Standard deviation of the gaussian filter. Should be positive. Default is 0, which
+        means no normalization.
+        :return: Nothing.
+        """
         if filter_std_dev < 0:
             msg = "The gaussian filter's standard deviation must be positive (or 0, which means no normalization)."
             raise ValueError(msg)
@@ -209,6 +218,13 @@ class MultiSpeckleImagesManipulations:
             self._modified_images = self._modified_images / filters - np.mean(self._modified_images)
 
     def apply_median_filter(self, filter_size: int = 0):
+        """
+        Method to apply a median filter to remove small salt and pepper noise. The user should note that this filter
+        affects the speckle size if the filter size is relatively large. Use with caution.
+        :param filter_size: int. Size of the (square) filter. Should be positive and at least 2. However, the size can
+        be 0, in which case no filtering is done.
+        :return: Nothing.
+        """
         if filter_size == 0:
             return
         if filter_size < 2:
@@ -221,6 +237,22 @@ class MultiSpeckleImagesManipulations:
         self._modified_images = median_filtered
 
     def apply_on_modified_image(self, func: Callable, *fargs, force_on_slices: bool = False, **fkwargs):
+        """
+        Method used to apply a certain function or filter on the images. It should be at least a function accepting a
+        2D array, in which case each slice (or frame) will be passed one after the other. In the case where the function
+        accepts a 3D array, the whole stack is passed. Note that the shape of the stack is (N,M,S), where N is the
+        height of the images, M is the width and S is the number of images. The function can do whatever it needs, but
+        should return the images in the same shape.
+        :param func: callable. Function to use with the images. Should at least accept a 2D array. In this case,
+        `force_on_slices` needs to be `True` (i.e. every frame will be passed to the function, one after the other).
+        Otherwise, it should accept a 3D array. Then, `force_on_slices` needs to be `False` (i.e. we give the whole
+        stack to the function).
+        :param fargs: args. Arguments to give to the function.
+        :param force_on_slices: bool. Boolean specifying if we need to pass a single frame at a time to the function.
+        It is `False` by default, meaning that the function should accept 3D arrays and work on them accordingly.
+        :param fkwargs: keyword args. Keyword arguments to give to the function.
+        :return: Nothing.
+        """
         if force_on_slices:
             n_images = self._modified_images.shape[-1]
             modified_image = np.full_like(self._modified_images, np.nan)
@@ -232,6 +264,15 @@ class MultiSpeckleImagesManipulations:
             self._modified_images = func(self._modified_images, *fargs, **fkwargs)
 
     def compute_local_contrast(self, kernel_size: int = 7):
+        """
+        Method used to compute the local contrast of the speckle images. The contrast is computed by rolling windows
+        computing the contrast in 3 step: compute the average, then the average of the square of the image, then
+        compute the standard deviation and divide it by the average (definition of contrast).
+        :param kernel_size: int. Size of the (square) kernel. Should be at least 2. The default is 7 (a 7x7 window),
+        which is often use in the litterature (see David A. Boas, Andrew K. Dunn, "Laser speckle contrast imaging in
+        biomedical optics," J. Biomed. Opt. 15(1) 011109 (1 January 2010) https://doi.org/10.1117/1.3285504)
+        :return: Nothing.
+        """
         if kernel_size < 2:
             raise ValueError("The size of the local contrast kernel must be at least 2.")
         n_images = self._modified_images.shape[-1]
@@ -251,15 +292,41 @@ class MultiSpeckleImagesManipulations:
         return std_image_windowed / windowed_avgs
 
     def do_autocorrelations(self):
+        """
+        Method used to do the autocorrelation of each image (i.e. the cross correlation of each image with itself).
+        :return: Nothing.
+        """
         self._autocorrelations_obj = AutocorrelationsUtils(self._modified_images)
         self._autocorrelations_obj.autocorrelate()
 
     def access_autocorrelation_slices(self, slices_pos: Tuple[int, int] = (None, None)):
+        """
+        Method used to access autocorrelation slices (i.e. a 1D view of the 2D autocorrelations).
+        :param slices_pos: tuple of integers. The first integer (must be positive) is the vertical position (i.e. the
+        line number of the array, which starts at 0). It is `None` by default which gives the central slice (i.e. the
+        slice at shape[0] // 2). The second integer (must also be positive) is the horizontal position (i.e. the column
+        number of the array, which also starts at 0). It is also `None` by default, which gives the central slice (i.e.
+        the slice at shape[1] // 2).
+        :return: A tuple of 1D arrays. The first array is the horizontal slice (i.e. the slice at the position of the
+        first element of `slice_pos`), while the second array is the vertical slice (i.e. the slice at the position of
+        the second element of `slice_pos`).
+        """
         if self._autocorrelations_obj is None:
             raise ValueError("Please do the autocorrelation before accessing its slices.")
         return self._autocorrelations_obj.autocorrelation_slices(slices_pos)
 
     def get_speckle_sizes(self, average: bool = True):
+        """
+        Method used to get the speckle sizes (the horizontal and vertical sizes). See `PeakMeasurementsUtils.find_FWHMs`
+        for more info about what is done.
+        :param average: bool. Boolean specifying if we want to do the average of all the speckle sizes. If `True`
+        (default), the average of the horizontal speckle sizes is done (e.g. if there are 10 frames, the 10 horizontal
+        sizes are computed, but then the average is computed, giving only one value). The same thing is done for
+        the vertical sizes. When this parameter is `False`, no average is done (e.g. if there are 1- frames, the 10
+        horizontal sizes are computed and returned).
+        :return: A tuple of 2 elements. The elements are either a single float or an array, depending on the value of
+        `average`. See the argument definition for more information.
+        """
         if self._autocorrelations_obj is None:
             raise ValueError("Please do the autocorrelation before finding the (average) speckle sizes.")
         h_slices, v_slices = self.access_autocorrelation_slices()
