@@ -8,7 +8,8 @@ from scipy.signal import convolve2d
 from scipy.interpolate import interp1d
 from scipy.optimize import root_scalar
 
-#TODO: Rework everything!
+
+# TODO: Rework everything!
 
 class SpeckleMovieReader:
     """
@@ -301,7 +302,7 @@ class MultiSpeckleImagesManipulations:
 
     def access_autocorrelation_slices(self, slices_pos: Tuple[int, int] = (None, None)):
         """
-        Method used to access autocorrelation slices (i.e. a 1D view of the 2D autocorrelations).
+        Method used to access autocorrelation slices (i.e. a 2D view of the 3D autocorrelations).
         :param slices_pos: tuple of integers. The first integer (must be positive) is the vertical position (i.e. the
         line number of the array, which starts at 0). It is `None` by default which gives the central slice (i.e. the
         slice at shape[0] // 2). The second integer (must also be positive) is the horizontal position (i.e. the column
@@ -340,18 +341,39 @@ class MultiSpeckleImagesManipulations:
 
 
 class AutocorrelationsUtils:
+    """
+    Class used to do autocorrelations and other related work.
+    """
 
     def __init__(self, speckle_images: np.ndarray):
+        """
+        Initializer of the class.
+        :param speckle_images: np.ndarray. NumPy array containing the images as a stack. Note that the shape must be
+        (N,M,S) where N is the height of the images, M is the width and S is the number of speckle images. If the shape
+        is different, the autocorrelation algorithm won't work properly.
+        """
         self._speckle_images = speckle_images
         self._autocorrelations = None
 
     @property
     def autocorrelations(self):
+        """
+        Getter of the autocorrelations. It returns a copy of the array, because we don't want any unwanted
+        modifications.
+        :return: The autocorrelations (as a copy).
+        """
         if self._autocorrelations is None:
             return None
         return self._autocorrelations.copy()
 
     def autocorrelate(self):
+        """
+        Method used to do the autocorrelations (cross correlation of each image with itself). The algorithm uses the
+        Wiener–Khinchin theorem (https://en.wikipedia.org/wiki/Wiener%E2%80%93Khinchin_theorem) which states that the
+        autocorrelation of a process (stationary) can be computed with the power spectrum of the process. This allows
+        for fast computations using Fourier transforms.
+        :return: Nothing.
+        """
         ffts = np.fft.fft2(self._speckle_images, axes=(0, 1))
         iffts = np.fft.ifftshift(np.fft.ifft2(np.abs(ffts) ** 2, axes=(0, 1)), axes=(0, 1)).real
         iffts /= np.size(iffts[:, :, 0])
@@ -359,6 +381,17 @@ class AutocorrelationsUtils:
             self._speckle_images, axis=(0, 1))
 
     def autocorrelation_slices(self, slices_pos: Tuple[int, int] = (None, None)):
+        """
+         Method used to access autocorrelation slices (i.e. a 2D view of the 3D autocorrelations).
+        :param slices_pos: tuple of integers. The first integer (must be positive) is the vertical position (i.e. the
+        line number of the array, which starts at 0). It is `None` by default which gives the central slice (i.e. the
+        slice at shape[0] // 2). The second integer (must also be positive) is the horizontal position (i.e. the column
+        number of the array, which also starts at 0). It is also `None` by default, which gives the central slice (i.e.
+        the slice at shape[1] // 2).
+        :return: A tuple of 1D arrays. The first array is the horizontal slice (i.e. the slice at the position of the
+        first element of `slice_pos`), while the second array is the vertical slice (i.e. the slice at the position of
+        the second element of `slice_pos`).
+        """
         if self._autocorrelations is None:
             raise ValueError("Please do the autocorrelation before accessing its slices.")
         v_pos, h_pos = slices_pos
@@ -372,20 +405,41 @@ class AutocorrelationsUtils:
 
 
 class PeakMeasurementsUtils:
+    """
+    Class used to compute FWHM of a peaks in a 2D signal (i.e. 1D signal stacked).
+    """
 
     def __init__(self, data_x_s: np.ndarray, data_y_s: np.ndarray):
+        """
+        Initializer of the class.
+        :param data_x_s: np.ndarray. NumPy 2D array of x values of the signal. Should be ordered along each column.
+        The shape should be (N,S) where S is the number of experiments and N is the number of samples.
+        :param data_y_s: np.ndarray. NumPy 2D array of y values of the signal. Should be ordered with the right x
+        values and should have the same shape.
+        """
         if data_x_s.ndim != 2:
             raise ValueError("`data_x_s` must be a 2-dimensional array.")
         if data_y_s.ndim != 2:
             raise ValueError("`data_y_s` must be a 2-dimensional array.")
+        if data_y_s.shape != data_x_s.shape:
+            raise ValueError("`data_x_s` must have the same shape as `data_y_s`.")
         self._data_x_s = data_x_s.copy()
         self._data_y_s = data_y_s.copy()
-        self._interpolations = [interp1d(data_x_s[0], data_y_s[0], "cubic", assume_sorted=True)]
+        self._interpolations = [interp1d(data_x_s[i], data_y_s[i], "cubic", assume_sorted=True) for i in
+                                range(len(self._data_x_s))]
 
     def find_FWHMs(self, maximums: Tuple[float] = None):
+        """
+        Method used to compute the FWHM of peaks in the internal data (specified in the initializer). The data is
+        interpolated in one dimension (one interpolation per signal in the stack), then the roots where the signal
+        equals the half maximum are computed and subtracted to find the full width at half maximum.
+        :param maximums: Tuple of floats. Supposed maximums of the peaks (one per individual signal of the 2D stack).
+        The default is `None`, which means that the maximums are inferred from the data.
+        :return: The distance between each right root and each left root (in an array).
+        """
         mins_x = np.min(self._data_x_s, axis=1)
         maxs_x = np.max(self._data_x_s, axis=1)
-        other_bounds = (maxs_x - mins_x) / 2
+        other_bounds = self._data_x_s[np.argmax(self._data_y_s, axis=1)]
         maximums = np.max(self._data_y_s, axis=1) if maximums is None else np.array(maximums)
         half_maxs = maximums / 2
 
