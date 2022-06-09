@@ -199,7 +199,7 @@ class MultiSpeckleImagesManipulations:
 
     def apply_gaussian_normalization(self, filter_std_dev: float = 0):
         """
-        Method used to normalize images when the illumination is not uniform and follows a gaussian function. This is
+        Method used to normalize images when the illumination is not uniform and follows a gaussian profile. This is
         perhaps not the best way to normalize as it can affect the contrast and the speckle size, but it can be good
         when we want to uniformize the intensity. A better way would be to normalize with a uniform image taken without
         speckles.
@@ -270,9 +270,10 @@ class MultiSpeckleImagesManipulations:
         computing the contrast in 3 step: compute the average, then the average of the square of the image, then
         compute the standard deviation and divide it by the average (definition of contrast).
         :param kernel_size: int. Size of the (square) kernel. Should be at least 2. The default is 7 (a 7x7 window),
-        which is often use in the litterature (see David A. Boas, Andrew K. Dunn, "Laser speckle contrast imaging in
+        which is often use in the literature (see David A. Boas, Andrew K. Dunn, "Laser speckle contrast imaging in
         biomedical optics," J. Biomed. Opt. 15(1) 011109 (1 January 2010) https://doi.org/10.1117/1.3285504)
-        :return: Nothing.
+        :return: A NumPy array (3D) of shape (N',M',S) where N' is the height of the images after passing in the kernel,
+        M' is the width of the images after passing in the kernel and S is the number of images.
         """
         if kernel_size < 2:
             raise ValueError("The size of the local contrast kernel must be at least 2.")
@@ -308,8 +309,8 @@ class MultiSpeckleImagesManipulations:
         slice at shape[0] // 2). The second integer (must also be positive) is the horizontal position (i.e. the column
         number of the array, which also starts at 0). It is also `None` by default, which gives the central slice (i.e.
         the slice at shape[1] // 2).
-        :return: A tuple of 1D arrays. The first array is the horizontal slice (i.e. the slice at the position of the
-        first element of `slice_pos`), while the second array is the vertical slice (i.e. the slice at the position of
+        :return: A tuple of 2D arrays. The first array is the horizontal slices (i.e. the slices at the position of the
+        first element of `slice_pos`), while the second array is the vertical slices (i.e. the slices at the position of
         the second element of `slice_pos`).
         """
         if self._autocorrelations_obj is None:
@@ -382,14 +383,14 @@ class AutocorrelationsUtils:
 
     def autocorrelation_slices(self, slices_pos: Tuple[int, int] = (None, None)):
         """
-         Method used to access autocorrelation slices (i.e. a 2D view of the 3D autocorrelations).
+        Method used to access autocorrelation slices (i.e. a 2D view of the 3D autocorrelations).
         :param slices_pos: tuple of integers. The first integer (must be positive) is the vertical position (i.e. the
         line number of the array, which starts at 0). It is `None` by default which gives the central slice (i.e. the
         slice at shape[0] // 2). The second integer (must also be positive) is the horizontal position (i.e. the column
         number of the array, which also starts at 0). It is also `None` by default, which gives the central slice (i.e.
         the slice at shape[1] // 2).
-        :return: A tuple of 1D arrays. The first array is the horizontal slice (i.e. the slice at the position of the
-        first element of `slice_pos`), while the second array is the vertical slice (i.e. the slice at the position of
+        :return: A tuple of 2D arrays. The first array is the horizontal slices (i.e. the slices at the position of the
+        first element of `slice_pos`), while the second array is the vertical slices (i.e. the slices at the position of
         the second element of `slice_pos`).
         """
         if self._autocorrelations is None:
