@@ -10,11 +10,23 @@ import scipy.stats as stats
 
 
 class SpeckleImageReader:
+    """
+    Class used to read image files. The file can have multiple frames. Will most likely be moved somewhere else.
+    """
 
     def __init__(self, filepath: str):
+        """
+        Initializer of the class.
+        :param filepath: str. Path leading to the file.
+        """
         self._filepath = filepath
 
     def read(self):
+        """
+        Method used to read / load the images in memory. Without calling this method, nothing is loaded.
+        :return: A NumPy array of the images as a stack with shape (N,M,S) where N is the height of the images, M is
+        the width and S is the number of images. If only one image / frame is present, the shape is (N,M,1).
+        """
         im = imio.mimread(self._filepath)
         if len(im) == 1:
             return im[0]
@@ -22,8 +34,18 @@ class SpeckleImageReader:
 
 
 class SpeckleImageManipulations:
+    """
+    Class used to manipulate a single speckle image.
+    """
 
     def __init__(self, image_path: str = None, image_from_array: np.ndarray = None, image_name: str = None):
+        """
+        Initializer of the class.
+        :param image_path: str. Path leading to the image. Cannot be used with `image_from_array`.
+        :param image_from_array: np.ndarray. NumPy array containing the image's pixels. Cannot be used with
+        `image_path`.
+        :param image_name: str. Name of the image. Is `None` (no name) by default.
+        """
         c1 = image_path is None and image_from_array is None
         c2 = image_path is not None and image_from_array is not None
         if c1 or c2:
