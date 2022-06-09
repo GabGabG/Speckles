@@ -4,12 +4,18 @@ import matplotlib.pyplot as plt
 import abc
 from typing import Type, Tuple, Dict
 
-plt.rcParams.update({"font.size": 22})
-
 
 class StaticSpeckleSimulation(abc.ABC):
+    """
+    Base abstract class to generate static speckle simulations. No object can be instantiated from it.
+    """
 
     def __init__(self, sim_shape: int):
+        """
+        Initializer of the class.
+        :param sim_shape: int. Shape of the simulation, which will create simulations `sim_shape`x`sim_shape`. Must be
+        strictly positive.
+        """
         if sim_shape <= 0:
             raise ValueError("The simulations shape must be strictly positive")
         self._sim_shape = (sim_shape, sim_shape)
@@ -17,19 +23,39 @@ class StaticSpeckleSimulation(abc.ABC):
 
     @property
     def previous_simulation(self):
+        """
+        Getter of the previous simulation (last one to have been created).
+        :return: An array containing the previous simulation.
+        """
         return self._previous_simulation
 
     @property
     def sim_shape(self):
+        """
+        Getter of the simulation shape.
+        :return: A tuple containing the shape of the simulation.
+        """
         return self._sim_shape
 
     @sim_shape.setter
     def sim_shape(self, sim_shape: int):
+        """
+        Setter of the shape of the simulation.
+        :param sim_shape: int. New shape for the simulation. Must be strictly positive. The future simulations will have
+        a shape `sim_shape`x`sim_shape`.
+        :return: Nothing.
+        """
         if sim_shape <= 0:
             raise ValueError("The simulations shape must be strictly positive")
         self._sim_shape = (sim_shape, sim_shape)
 
     def save_previous_simulation(self, filepath: str):
+        """
+        Method used to save the previous simulation (the last one done).
+        :param filepath: str. Path / name under which we save the previous simulation. If no extension is provided, we
+        save under a TIFF.
+        :return: Nothing.
+        """
         if self._previous_simulation is None:
             raise ValueError("No simulation to save.")
         if "." not in filepath:
@@ -37,16 +63,26 @@ class StaticSpeckleSimulation(abc.ABC):
         imio.imwrite(filepath, self._previous_simulation)
 
     def show_previous_simulation(self):
+        """
+        Method used to display and show the previous simulation (the last one done).
+        :return: Nothing.
+        """
         if self._previous_simulation is None:
             raise ValueError("No simulation to show.")
         plt.imshow(self._previous_simulation, "gray")
         plt.colorbar()
         plt.show()
 
-    def _generate_phases(self, lower_bound: float = -np.pi, upper_bound: float = np.pi, uniform: bool = True):
+    def _generate_phases(self, lower_bound: float = -np.pi, upper_bound: float = np.pi):
+        """
+        Protected method to generate phases and the phase factors exp(jθ) where  are the phases. For now,
+        this method only potentially creates fully developed speckles where the phases are drawn from a uniform
+        distribution. When the distribution interval is 2π, we have fully developed speckles.
+        :param lower_bound: float. Lower bound of the uniform interval. By default, this is -π.
+        :param upper_bound: float. Upper bound (not included) of the uniform interval. By default, this is π.
+        :return: The phase factors exp(jθ), a complex array,
+        """
         phases = np.random.uniform(lower_bound, upper_bound, self._sim_shape)
-        if not uniform:
-            phases = np.random.normal(0, np.pi / 2, self._sim_shape)
         return np.exp(1j * phases)
 
     @abc.abstractmethod
