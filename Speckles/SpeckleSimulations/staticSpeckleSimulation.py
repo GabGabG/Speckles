@@ -87,9 +87,22 @@ class StaticSpeckleSimulation(abc.ABC):
 
     @abc.abstractmethod
     def simulate(self):
+        """
+        Abstract method to be reimplemented in derived class. This is the method to simulate speckles (i.e. the
+        simulation algorithm).
+        :return: Nothing.
+        """
         pass
 
     def intensity_histogram(self, n_bins: int = 256, density: bool = True):
+        """
+        Method used to display and show the intensity histogram of the current simulation.
+        :param n_bins: int. Number of bins to use for the histogram. Should be strictly positive.
+        :param density: bool. Boolean indicating if the histogram should be normalized (i.e. the integral over the
+        domain is 1). Default is `True`.
+        :return: A tuple of 2 elements. The first is the array of "y" values (i.e. the probability value or counts), the
+        second is the array of bin edges.
+        """
         if self._previous_simulation is None:
             raise ValueError("No simulation to extract intensity histogram.")
         if n_bins <= 0:
@@ -100,8 +113,21 @@ class StaticSpeckleSimulation(abc.ABC):
 
 
 class SpeckleSimulationFromEllipsoidSource(StaticSpeckleSimulation):
+    """
+    Class used to simulate static speckles with ellipsoid shape. Derived from `StaticSpeckleSimulation`, but is not
+    abstract.
+    """
 
     def __init__(self, sim_shape: int, vertical_diameter: float, horizontal_diameter: float):
+        """
+        Initializer of the class.
+        :param sim_shape: int. Shape of the simulation, which will create simulations `sim_shape`x`sim_shape`. Must be
+        strictly positive.
+        :param vertical_diameter: float. Vertical diameter of the ellipse, related to the vertical diameter of the
+        speckles. Should be strictly positive.
+        :param horizontal_diameter: float. Horizontal diameter of the ellipse, related to the horizontal diameter of the
+        speckles. Should be strictly positive.
+        """
         super(SpeckleSimulationFromEllipsoidSource, self).__init__(sim_shape)
         if vertical_diameter <= 0:
             raise ValueError("The vertical diameter must be strictly positive.")
@@ -114,10 +140,19 @@ class SpeckleSimulationFromEllipsoidSource(StaticSpeckleSimulation):
 
     @property
     def vertical_diameter(self):
+        """
+        Getter of the vertical diameter.
+        :return: The vertical diameter (a float).
+        """
         return self._2b
 
     @vertical_diameter.setter
     def vertical_diameter(self, vertical_diameter: float):
+        """
+        Setter of the vertical diameter.
+        :param vertical_diameter: float. New vertical diameter. Must be strictly positive.
+        :return: Nothing.
+        """
         if vertical_diameter <= 0:
             raise ValueError("The vertical diameter must be strictly positive.")
         self._2b = vertical_diameter
@@ -125,23 +160,41 @@ class SpeckleSimulationFromEllipsoidSource(StaticSpeckleSimulation):
 
     @property
     def horizontal_diameter(self):
+        """
+        Getter of the horizontal diameter.
+        :return: The horizontal diameter (a float).
+        """
         return self._2a
 
     @horizontal_diameter.setter
     def horizontal_diameter(self, horizontal_diameter: float):
+        """
+        Setter of the horizontal diameter
+        :param horizontal_diameter: float. New horizontal diameter. Must be strictly positive.
+        :return: Nothing.
+        """
         if horizontal_diameter <= 0:
             raise ValueError("The vertical diameter must be strictly positive.")
         self._2a = horizontal_diameter
         self._a = horizontal_diameter / 2
 
-    def simulate(self, fully: bool = True):
+    def simulate(self):
+        """
+        Method used to do the simulations. Redefinition of the abstract method. This method creates fully developed
+        speckles (for now) and uses an "imaging" algorithm (i.e. simulate imaging speckles).
+        :return: Nothing.
+        """
         mask = self._generate_ellipsoid_mask()
-        sim_before_fft = self._generate_phases(-np.pi, np.pi, uniform=fully)
+        sim_before_fft = self._generate_phases(-np.pi, np.pi)
         sim = (np.abs(np.fft.ifft2(np.fft.ifftshift(np.fft.fftshift(np.fft.fft2(sim_before_fft)) * mask))) ** 2).real
         sim /= np.max(sim)
         self._previous_simulation = sim
 
     def _generate_ellipsoid_mask(self):
+        """
+        Method used to generate an ellipsoid mask (i.e. a mask used to dictate the shape of the speckles).
+        :return: The mask (a 2D NumPy array).
+        """
         Y, X = np.indices(self._sim_shape)
         Y -= self._sim_shape[0] // 2
         X -= self._sim_shape[1] // 2
@@ -150,8 +203,18 @@ class SpeckleSimulationFromEllipsoidSource(StaticSpeckleSimulation):
 
 
 class SpeckleSimulationFromCircularSource(SpeckleSimulationFromEllipsoidSource):
+    # TODO: Override get / set of vertical and horizontal diameters to prevent or do change both at same time.
+    """
+    Class used to simulate circular speckles. Derived from `SpeckleSimulationFromEllipsoidSource`.
+    """
 
     def __init__(self, sim_shape: int, circle_diameter: float):
+        """
+        Initializer of the class.
+        :param sim_shape: int. Shape of the simulation, which will create simulations `sim_shape`x`sim_shape`. Must be
+        strictly positive.
+        :param circle_diameter: float. Diameter of the circle, related to the speckle size. Should be strictly positive.
+        """
         super(SpeckleSimulationFromCircularSource, self).__init__(sim_shape, circle_diameter, circle_diameter)
         if circle_diameter <= 0:
             raise ValueError("The circle diameter must be strictly positive.")
@@ -160,10 +223,19 @@ class SpeckleSimulationFromCircularSource(SpeckleSimulationFromEllipsoidSource):
 
     @property
     def circle_diameter(self):
+        """
+        Getter of the circle diameter.
+        :return: The circle diameter (a float).
+        """
         return self._circle_diameter
 
     @circle_diameter.setter
     def circle_diameter(self, circle_diameter: float):
+        """
+        Setter of the circle diameter
+        :param circle_diameter: float. New circle diameter (related to the speckle diameter). Must be strictly positive.
+        :return: Nothing.
+        """
         if circle_diameter <= 0:
             raise ValueError("The circle diameter must be strictly positive.")
         self._circle_diameter = circle_diameter
