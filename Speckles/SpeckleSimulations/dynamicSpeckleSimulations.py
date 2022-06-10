@@ -294,6 +294,66 @@ class DynamicSpeckleSimulationsFromCircularSourceWithBrownianMotion(DynamicSpeck
         return W
 
 
+class DynamicSpeckleSimulationsFromCircularSourceWithSpecificDecorrelationTensor(
+    DynamicSpeckleSimulationsFromCircularSource):
+
+    def __init__(self, circle_diameter: float, decorrelation_tensor: np.ndarray):
+        tensor_shape = decorrelation_tensor.shape
+        if decorrelation_tensor.ndim != 3:
+            raise ValueError("The decorrelation tensor must be 3D.")
+        sim_shape = tensor_shape[0]
+        if sim_shape != tensor_shape[1]:
+            msg = "Decorrelation tensor must have the equal height (first dimension) and width (second dimension)."
+            raise ValueError(msg)
+        if np.any((0 > decorrelation_tensor) & (1 < decorrelation_tensor)):
+            raise ValueError("Values inside the decorrelation tensor must be between 0 and 1 (both included).")
+        n_time_steps = tensor_shape[2]
+        s = sim_shape
+        n = n_time_steps
+        c_d = circle_diameter
+        super(DynamicSpeckleSimulationsFromCircularSourceWithSpecificDecorrelationTensor, self).__init__(s, n, c_d)
+        self._original_decorrelation_tensor = decorrelation_tensor.copy()
+        self._decorrelation_tensor = self._original_decorrelation_tensor.copy()
+
+    @property
+    def time_steps(self):
+        return super(DynamicSpeckleSimulationsFromCircularSourceWithSpecificDecorrelationTensor, self).time_steps
+
+    @time_steps.setter
+    def time_steps(self, n_time_steps: int):
+        if n_time_steps <= 1:
+            raise ValueError("There must be at least 2 time steps for a dynamic speckle pattern.")
+        if n_time_steps > self._original_decorrelation_tensor:
+            msg = "The new number of time steps cannot be more than the number of time steps from the " \
+                  "decorrelation tensor."
+            raise ValueError(msg)
+        self._n_time_steps = n_time_steps
+        self._decorrelation_tensor = self._original_decorrelation_tensor[:, :, :n_time_steps].copy()
+
+    @property
+    def decorrelation_tensor(self):
+        return self._decorrelation_tensor
+
+    def restore_original_decorrelation_tensor(self):
+        self._decorrelation_tensor = self._original_decorrelation_tensor.copy()
+
+    def simulate(self):
+        M_1 = self._generate_phases()
+        M_2 = self._generate_phases()
+        M_1 = np.broadcast_to(M_1, (self._n_time_steps, *M_1.shape)).transpose((1, 2, 0))
+        M_2 = np.broadcast_to(M_2, (self._n_time_steps, *M_2.shape)).transpose((1, 2, 0))
+        W = M_1 * self._decorrelation_tensor + np.sqrt(1 - self._decorrelation_tensor ** 2) * M_2
+        mask = self._generate_circular_mask()
+        masks = np.broadcast_to(mask, (self._n_time_steps, *mask.shape)).transpose((1, 2, 0))
+        sims = (np.abs(
+            np.fft.ifft2(
+                np.fft.ifftshift(np.fft.fftshift(np.fft.fft2(W, axes=(0, 1)), axes=(0, 1)) * masks, axes=(0, 1)),
+                axes=(0, 1))) ** 2).real
+        sims /= np.max(sims, (0, 1))
+        self._previous_simulations = sims.transpose((2, 0, 1))
+        return W
+
+
 class DynamicSpeckleSimulationsFromCircularSourceWithPupilMotion(DynamicSpeckleSimulationsFromCircularSource):
 
     def __init__(self, sim_shape: int, n_time_step: int, circle_diameter: float,
@@ -361,7 +421,7 @@ class DynamicSpeckleSimulationsFromCircularSourceWithPupilMotion(DynamicSpeckleS
 
     def simulate(self):
         masks = self._generate_circular_masks()
-        W = self._generate_phases(-np.pi, np.pi)
+        W = self._generate_phases()
         W = np.broadcast_to(W, (self._n_time_steps, *W.shape)).transpose((1, 2, 0))
         sims = (np.abs(
             np.fft.ifft2(
@@ -502,3 +562,45 @@ class DynamicSpeckleSimulationsPartiallyDeveloped:
         else:
             raise ValueError(f"Parameter `{indices}` is not recognized.")
         return sims
+
+
+if __name__ == '__main__':
+    from scipy.signal import convolve2d
+
+    c = 0.1
+    b = 2.2
+    t_steps = np.linspace(0, 15, 100)
+    rho = (1 - c) * np.exp(-t_steps / b) + c
+    tensor = np.ones((1000, 1000, 100))
+    tensor[:, 250:750, :] = rho
+    plt.imshow(tensor[:, :, -1])
+    plt.show()
+    sim = DynamicSpeckleSimulationsFromCircularSourceWithSpecificDecorrelationTensor(50, tensor)
+    sim.simulate()
+    sim.animate_previous_simulations()
+    prev_sims = sim.previous_simulations
+    fig, (ax1, ax2) = plt.subplots(1, 2)
+    ax1.imshow(prev_sims[0], cmap="gray")
+    ax2.imshow(prev_sims[-1], cmap="gray")
+    plt.show()
+
+
+    def local_contrast(image):
+        kernel = np.ones((7, 7))
+        n = kernel.size
+        temp_image = image.astype(float)
+        windowed_avg = convolve2d(temp_image, kernel, "valid") / n
+        squared_image_filter = convolve2d(temp_image ** 2, kernel, "valid")
+        std_image_windowed = ((squared_image_filter - n * windowed_avg ** 2) / (n - 1)) ** 0.5
+        return std_image_windowed / windowed_avg
+
+
+    contrasts = []
+    for i in range(prev_sims.shape[0]):
+        contrast = local_contrast(prev_sims[i])
+        contrasts.append(contrast)
+        print(f"Contrast {i} done")
+    contrasts = np.dstack(contrasts)
+    contrast = np.mean(contrasts, axis=-1)
+    plt.imshow(contrast)
+    plt.show()
