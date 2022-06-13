@@ -97,7 +97,7 @@ class StaticSpeckleSimulation(abc.ABC):
     def intensity_histogram(self, n_bins: int = 256, density: bool = True):
         """
         Method used to display and show the intensity histogram of the current simulation.
-        :param n_bins: int. Number of bins to use for the histogram. Should be strictly positive.
+        :param n_bins: int. Number of bins to use for the histogram. Should be strictly positive. It is 256 by default.
         :param density: bool. Boolean indicating if the histogram should be normalized (i.e. the integral over the
         domain is 1). Default is `True`.
         :return: A tuple of 2 elements. The first is the array of "y" values (i.e. the probability value or counts), the
@@ -243,9 +243,23 @@ class SpeckleSimulationFromCircularSource(SpeckleSimulationFromEllipsoidSource):
 
 
 class SpeckleSimulationFromEllipsoidSourceWithPolarization(SpeckleSimulationFromEllipsoidSource):
+    """
+    Class used to simulate static partially polarized speckles with ellipsoid shape.
+    """
 
     def __init__(self, sim_shape: int, vertical_diameter: float, horizontal_diameter: float,
                  polarization_degree: float):
+        """
+        Initializer of the class.
+        :param sim_shape: int. Shape of the simulation, which will create simulations `sim_shape`x`sim_shape`. Must be
+        strictly positive.
+        :param vertical_diameter:  float. Vertical diameter of the ellipse, related to the vertical diameter of the
+        speckles. Should be strictly positive.
+        :param horizontal_diameter: float. Horizontal diameter of the ellipse, related to the horizontal diameter of the
+        speckles. Should be strictly positive.
+        :param polarization_degree: float. Degree of polarization of the laser. Must be between 0 and 1, both included
+        (0 is totally unpolarized and 1 is perfectly polarized).
+        """
         super(SpeckleSimulationFromEllipsoidSourceWithPolarization, self).__init__(sim_shape, vertical_diameter,
                                                                                    horizontal_diameter)
         if not (0 <= polarization_degree <= 1):
@@ -254,15 +268,29 @@ class SpeckleSimulationFromEllipsoidSourceWithPolarization(SpeckleSimulationFrom
 
     @property
     def polarization_degree(self):
+        """
+        Getter of the polarization degree.
+        :return: The polarization degree, a float.
+        """
         return self._polarization_degree
 
     @polarization_degree.setter
     def polarization_degree(self, polarization_degree: float):
+        """
+        Setter of the polarization degree.
+        :param polarization_degree: float. New polarization degree. Must be between 0 and 1, both included.
+        :return: Nothing.
+        """
         if not (0 <= polarization_degree <= 1):
             raise ValueError("The polarization degree must be between 0 and 1 (both included).")
         self._polarization_degree = polarization_degree
 
     def simulate(self):
+        """
+        Method used to do the simulations. Redefinition of the abstract method. This method created partially polarized
+        speckles and uses an "imaging" algorithm (i.e. simulate imaging speckles).
+        :return: Nothing.
+        """
         super(SpeckleSimulationFromEllipsoidSourceWithPolarization, self).simulate()
         sim_1 = self.previous_simulation.copy()
         super(SpeckleSimulationFromEllipsoidSourceWithPolarization, self).simulate()
@@ -273,8 +301,21 @@ class SpeckleSimulationFromEllipsoidSourceWithPolarization(SpeckleSimulationFrom
 
 
 class SpeckleSimulationFromCircularSourceWithPolarization(SpeckleSimulationFromCircularSource):
+    """
+    Class used to simulate static partially polarized speckles with circular shape.
+    """
+
+    # TODO: inherit from ellipsoid polarized class? Or both?
 
     def __init__(self, sim_shape: int, circle_diameter: float, polarization_degree: float):
+        """
+        Initializer of the class.
+        :param sim_shape: int. Shape of the simulation, which will create simulations `sim_shape`x`sim_shape`. Must be
+        strictly positive.
+        :param circle_diameter: float. Diameter of the circle, related to the speckle size. Should be strictly positive.
+        :param polarization_degree: float. Degree of polarization of the laser. Must be between 0 and 1, both included
+        (0 is totally unpolarized and 1 is perfectly polarized).
+        """
         super(SpeckleSimulationFromCircularSourceWithPolarization, self).__init__(sim_shape, circle_diameter)
         if not (0 <= polarization_degree <= 1):
             raise ValueError("The polarization degree must be between 0 and 1 (both included).")
@@ -282,15 +323,29 @@ class SpeckleSimulationFromCircularSourceWithPolarization(SpeckleSimulationFromC
 
     @property
     def polarization_degree(self):
+        """
+        Getter of the polarization degree.
+        :return: The polarization degree, a float.
+        """
         return self._polarization_degree
 
     @polarization_degree.setter
     def polarization_degree(self, polarization_degree: float):
+        """
+        Setter of the polarization degree.
+        :param polarization_degree: float. New polarization degree. Must be between 0 and 1, both included.
+        :return: Nothing.
+        """
         if not (0 <= polarization_degree <= 1):
             raise ValueError("The polarization degree must be between 0 and 1 (both included).")
         self._polarization_degree = polarization_degree
 
     def simulate(self):
+        """
+        Method used to do the simulations. Redefinition of the abstract method. This method created partially polarized
+        speckles and uses an "imaging" algorithm (i.e. simulate imaging speckles).
+        :return: Nothing.
+        """
         super(SpeckleSimulationFromCircularSourceWithPolarization, self).simulate()
         sim_1 = self.previous_simulation.copy()
         super(SpeckleSimulationFromCircularSourceWithPolarization, self).simulate()
@@ -301,8 +356,18 @@ class SpeckleSimulationFromCircularSourceWithPolarization(SpeckleSimulationFromC
 
 
 class PartiallyDevelopedSpeckleSimulation:
+    """
+    Class used to simulate static partially developed speckles. This class creates a sum of speckles.
+    """
 
     def __init__(self, base_speckle_sim_class: Type[StaticSpeckleSimulation], *class_args, **class_kwargs):
+        """
+        Initializer of the class.
+        :param base_speckle_sim_class: Type derived from `StaticSpeckleSimulation`. Base class to do simulations. Must
+        be derived from `StaticSpeckleSimulation`.
+        :param class_args: args. Arguments used when creating the class' instance.
+        :param class_kwargs: keyword args. Keyword arguments used when creating the class' instance.
+        """
         if not issubclass(base_speckle_sim_class, StaticSpeckleSimulation):
             raise TypeError("`base_speckle_class` must be a type derived from `StaticSpeckleSimulation`.")
         self._base_speckle_sim_class = base_speckle_sim_class(*class_args, **class_kwargs)
@@ -313,14 +378,24 @@ class PartiallyDevelopedSpeckleSimulation:
 
     @property
     def base_speckle_sim_class_and_args(self):
+        """
+        Getter of the class, its arguments and keyword arguments.
+        :return: A tuple containing three elements. The first is the base simulation class, the second is the arguments
+        used when creating the class' instance (itself a tuple), and the third element is the keyword arguments used
+        when creating the class' instance (itself a dictionary).
+        """
         return self._base_speckle_sim_class, self._cargs, self._ckwargs
 
     @base_speckle_sim_class_and_args.setter
     def base_speckle_sim_class_and_args(self, class_args_kwargs: Tuple[Type[StaticSpeckleSimulation], Tuple, Dict]):
         """
+        Sette of the class, its arguments and keyword arguments.
         Arg format: (<class>, <args> (empty tuple if no args), <kwargs> (empty dict if no kwargs))
-        :param class_args_kwargs:
-        :return:
+        :param class_args_kwargs: tuple. Tuple of three elements. The first must be the base simulation class (a class
+        derived from `StaticSpeckleSimulation`. The second element must be a tuple of arguments. The tuple is empty
+        when no arguments are needed. Finally, the third element must be a dictionary of keyword arguments. The
+        dictionary is empty when no keyword arguments are needed.
+        :return: Nothing.
         """
         if len(class_args_kwargs) != 3:
             msg = "There must be 3 elements in `class_args_kwargs`. The first one it the base class, the second is" \
@@ -342,17 +417,38 @@ class PartiallyDevelopedSpeckleSimulation:
 
     @property
     def previous_simulation(self):
+        """
+        Getter of the previous simulation (last one to have been created).
+        :return: An array containing the previous simulation.
+        """
         if self._previous_simulation is None:
             return None
         return self._previous_simulation.copy()
 
     @property
     def previous_simulation_means(self):
+        """
+        Getter of the mean of all the individual simulation used for the partially developed sum.
+        :return: An array of averages. Can be `None` if no simulation done.
+        """
         if self._means is None:
             return None
         return self._means.copy()
 
     def simulate(self, n_simulations_per_summation: int = 3, do_average: bool = False):
+        """
+        Method used to do the simulations. Redefinition of the abstract method. This method created partially polarized
+        speckles and uses an "imaging" algorithm (i.e. simulate imaging speckles).
+        :param n_simulations_per_summation: int. Integer specifying how many speckle patterns. Must be at least 1, where
+        1 pattern can be fully developed.
+        :param do_average: bool. Boolean specifying if we want to do the average instead of the sum of the patterns. It
+        is `False` by default, so the sum is done without normalization.
+        :return: Nothing.
+        """
+        if n_simulations_per_summation <= 0:
+            msg = "The number of patterns should be at least 1. Note that 1 pattern can be fully developed depending " \
+                  "on the base class."
+            raise ValueError(msg)
         n = n_simulations_per_summation
         sim_shape = self._base_speckle_sim_class.sim_shape
         speckles = np.full((*sim_shape, n), np.nan)
@@ -370,6 +466,14 @@ class PartiallyDevelopedSpeckleSimulation:
         self._means = means
 
     def intensity_histogram(self, n_bins: int = 256, density: bool = True):
+        """
+        Method used to display and show the intensity histogram of the sum (or mean) of the speckle patterns.
+        :param n_bins: int. Number of bins to use for the histogram. Should be strictly positive. It is 256 by default.
+        :param density: bool. Boolean indicating if the histogram should be normalized (i.e. the integral over the
+        domain is 1). Default is `True`.
+        :return: A tuple of 2 elements. The first is the array of "y" values (i.e. the probability value or counts), the
+        second is the array of bin edges.
+        """
         if self._previous_simulation is None:
             raise ValueError("No simulation to extract intensity histogram.")
         if n_bins <= 0:
@@ -379,6 +483,10 @@ class PartiallyDevelopedSpeckleSimulation:
         return values, bin_edges
 
     def show_previous_simulation(self):
+        """
+        Method used to display and show the previous simulation (the last one done).
+        :return: Nothing.
+        """
         if self._previous_simulation is None:
             raise ValueError("No simulation to show.")
         plt.imshow(self._previous_simulation, "gray")
