@@ -5,6 +5,9 @@ from typing import Callable, Tuple
 
 
 class SpeckleCharacterization:
+    """
+    Class used to encapsulate usual speckle analysis methods. Will change in the future.
+    """
 
     def __init__(self, image_path: str = None, image_from_array: np.ndarray = None, image_name: str = None,
                  background_image_to_remove_from_path: str = None,
@@ -122,34 +125,3 @@ class SpeckleCharacterization:
             plt.ylabel("Count [-]")
         plt.xlim(left=0)
         plt.show()
-
-
-if __name__ == '__main__':
-    import cv2
-
-    path = r"C:\Users\goubi\Downloads\PremièreMesures.avi"
-    video = cv2.VideoCapture(path)
-    stack = []
-    while True:
-        ret, frame = video.read()
-        if ret:
-            stack.append(frame)
-        else:
-            break
-    stack = np.dstack(stack)
-    plt.imshow(stack[:, :, 0])
-    plt.show()
-    char = SpeckleCharacterization(None, stack[:, :, 0])
-    print(char.speckle_sizes)
-    plt.hist(stack[:, :, 0].ravel(), 256)
-    plt.show()
-    exit()
-    path = r"../SpeckleSimulations/test.tif"
-    sc = SpeckleCharacterization(path)
-    sc.show_modified_speckle_image()
-    sc.show_autocorrelation()
-    sc.show_autocorrelation_slices()
-    sc.show_local_contrast()
-    sc.show_intensity_histogram()
-    sc.show_local_contrast_histogram(normalized=True)
-    print(sc.speckle_sizes)
