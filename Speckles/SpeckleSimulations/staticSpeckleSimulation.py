@@ -80,7 +80,7 @@ class StaticSpeckleSimulation(abc.ABC):
         distribution. When the distribution interval is 2π, we have fully developed speckles.
         :param lower_bound: float. Lower bound of the uniform interval. By default, this is -π.
         :param upper_bound: float. Upper bound (not included) of the uniform interval. By default, this is π.
-        :return: The phase factors exp(jθ), a complex array,
+        :return: The phase factors exp(jθ), a complex array.
         """
         phases = np.random.uniform(lower_bound, upper_bound, self._sim_shape)
         return np.exp(1j * phases)
