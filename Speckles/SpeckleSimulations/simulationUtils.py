@@ -1,3 +1,8 @@
+from typing import Union, Tuple, List
+import numpy as np
+import matplotlib.pyplot as plt
+
+
 class SpeckleSimulationsUtils:
     """
     Class used for utility methods.
@@ -31,15 +36,14 @@ class SpeckleSimulationsUtils:
         `sim_shape`x`sim_shape`). Should be strictly positive.
         :param vertical_speckle_size: float. Wanted vertical size of the speckles. Should be at least 2 pixels
         :param horizontal_speckle_size: float. Wanted vertical size of the speckles. Should be at least 2 pixels
-        :return: A tuple of ints. The first one is the vertical diameter of the ellipsoid mask, while the second element
+        :return: A tuple of floats. The first one is the vertical diameter of the ellipsoid mask, while the second element
         is the horizontal diameter of the ellipsoid mask.
         """
-        # TODO: Why ints in return?
         if vertical_speckle_size < 2 or horizontal_speckle_size < 2:
             raise ValueError("The speckle sizes must be at least 2 pixels.")
         if sim_shape <= 0:
             raise ValueError("The simulations shape must be strictly positive")
-        return int(sim_shape / vertical_speckle_size), int(sim_shape / horizontal_speckle_size)
+        return sim_shape / vertical_speckle_size, sim_shape / horizontal_speckle_size
 
     @staticmethod
     def speckle_size_from_circle_diameter(sim_shape: int, circle_diameter: float):
@@ -63,11 +67,39 @@ class SpeckleSimulationsUtils:
         :param sim_shape: int. Integer specifying what is the size of the simulation (dimensions are
         `sim_shape`x`sim_shape`). Should be strictly positive.
         :param speckle_size: float. Wanted size of the speckles. Should be at least 2 pixels
-        :return: The (approximate) circular mask diameter as an int.
+        :return: The (approximate) circular mask diameter as a float.
         """
-        # TODO: Why return int?
         if speckle_size < 2:
             raise ValueError("The speckle size must be at least 2 pixels.")
         if sim_shape <= 0:
             raise ValueError("The simulations shape must be strictly positive")
-        return int(sim_shape / speckle_size)
+        return sim_shape / speckle_size
+
+
+class DynamicSimulationsUtils:
+    """
+    Other class for utility methods. However, this one is useful for dynamic simulations.
+    """
+
+    @staticmethod
+    def get_indices(n_sims:int, indices: Union[str, int, slice, Tuple, List, np.ndarray] = "all"):
+        """
+        Protected method used to access specific frames depending on specified indices.
+        :param indices: str, int, slice Tuple, List or np.ndarray. Parameter used to specify which simulation to keep.
+        It can be different object. By default, it is a string 'all' which means we save all the frames of the
+        simulation (it is the only accepted string). When it is an integer, it means we only keep one frame. When a
+        slice, we keep the frames included in it. When an iterable (list, tuple, array), we keep the ones contained
+        inside.
+        :return: The wanted simulations indices, a list.
+        """
+        if indices == "all":
+            sims = range(n_sims)
+        elif isinstance(indices, int):
+            sims = [indices]
+        elif isinstance(indices, slice):
+            sims = range(indices.start, indices.stop, indices.step)
+        elif isinstance(indices, (Tuple, List, np.ndarray)):
+            sims = indices
+        else:
+            raise ValueError(f"Parameter `{indices}` is not recognized.")
+        return sims

@@ -5,6 +5,7 @@ import abc
 from typing import Union, Tuple, List
 from matplotlib.animation import ArtistAnimation, FuncAnimation
 import warnings
+from simulationUtils import DynamicSimulationsUtils
 
 
 # TODO: Save animation with something else than pyplot
@@ -94,7 +95,7 @@ class DynamicSpeckleSimulations(abc.ABC):
         if indices == "all":
             sims_to_save = self._previous_simulations
         else:
-            sims = self._get_specific_indices(indices)
+            sims = DynamicSimulationsUtils.get_indices(self._previous_simulations.shape[0], indices)
             sims_to_save = self._previous_simulations[sims, :, :]
         if "." not in filepath:
             filepath += ".tiff"
@@ -112,7 +113,7 @@ class DynamicSpeckleSimulations(abc.ABC):
         """
         if self._previous_simulations is None:
             raise ValueError("No simulation to show.")
-        sims = self._get_specific_indices(indices)
+        sims = DynamicSimulationsUtils.get_indices(self._previous_simulations.shape[0], indices)
         for sim in sims:
             plt.imshow(self._previous_simulations[sim, :, :], cmap="gray")
             plt.show()
@@ -163,7 +164,7 @@ class DynamicSpeckleSimulations(abc.ABC):
             raise ValueError("No simulation to extract intensity histogram.")
         if n_bins <= 0:
             raise ValueError("The number of bins for the histogram must be at least 1.")
-        sims = self._get_specific_indices(indices)
+        sims = DynamicSimulationsUtils.get_indices(self._previous_simulations.shape[0], indices)
         all_values = []
         all_bin_edges = []
         for sim in sims:
@@ -217,28 +218,6 @@ class DynamicSpeckleSimulations(abc.ABC):
                 plt.rcParams['animation.ffmpeg_path'] = ffmpeg_encoder_path
             ani.save(savename)
         return ani
-
-    def _get_specific_indices(self, indices: Union[str, int, slice, Tuple, List, np.ndarray] = "all"):
-        """
-        Protected method used to access specific frames depending on specified indices.
-        :param indices: str, int, slice Tuple, List or np.ndarray. Parameter used to specify which simulation to keep.
-        It can be different object. By default, it is a string 'all' which means we save all the frames of the
-        simulation (it is the only accepted string). When it is an integer, it means we only keep one frame. When a
-        slice, we keep the frames included in it. When an iterable (list, tuple, array), we keep the ones contained
-        inside.
-        :return: The wanted simulations indices, a list.
-        """
-        if indices == "all":
-            sims = range(self._n_time_steps)
-        elif isinstance(indices, int):
-            sims = [indices]
-        elif isinstance(indices, slice):
-            sims = range(indices.start, indices.stop, indices.step)
-        elif isinstance(indices, (Tuple, List, np.ndarray)):
-            sims = indices
-        else:
-            raise ValueError(f"Parameter `{indices}` is not recognized.")
-        return sims
 
     def _generate_phases(self, lower_bound: float = -np.pi, upper_bound: float = np.pi):
         """
@@ -448,7 +427,15 @@ class DynamicSpeckleSimulationsFromCircularSourceWithBrownianMotion(DynamicSpeck
         """
         return self._r_s.copy()
 
-    # TODO: Do something about the r_s setter. Should not be accessed.
+    @r_s.setter
+    def r_s(self, any_val):
+        """
+        This setter cannot be used in this context. It only raises an error.
+        :param any_val: any. This argument is not relevant in the current context.
+        :return: Nothing.
+        """
+        msg = "This setter cannot be used in the current context. Please use other setters provided from this class."
+        raise NotImplementedError(msg)
 
     @property
     def tau_s(self):
@@ -748,7 +735,7 @@ class DynamicSpeckleSimulationsPartiallyDeveloped:
         if indices == "all":
             sims_to_save = self._previous_simulations
         else:
-            sims = self._get_specific_indices(indices)
+            sims = DynamicSimulationsUtils.get_indices(self._previous_simulations.shape[0], indices)
             sims_to_save = self._previous_simulations[sims, :, :]
         if "." not in filepath:
             filepath += ".tiff"
@@ -766,7 +753,7 @@ class DynamicSpeckleSimulationsPartiallyDeveloped:
         """
         if self._previous_simulations is None:
             raise ValueError("No simulation to show.")
-        sims = self._get_specific_indices(indices)
+        sims = DynamicSimulationsUtils.get_indices(self._previous_simulations.shape[0], indices)
         for sim in sims:
             plt.imshow(self._previous_simulations[sim, :, :], cmap="gray")
             plt.show()
@@ -816,7 +803,7 @@ class DynamicSpeckleSimulationsPartiallyDeveloped:
             raise ValueError("No simulation to extract intensity histogram.")
         if n_bins <= 0:
             raise ValueError("The number of bins for the histogram must be at least 1.")
-        sims = self._get_specific_indices(indices)
+        sims = DynamicSimulationsUtils.get_indices(self._previous_simulations.shape[0], indices)
         all_values = []
         all_bin_edges = []
         for sim in sims:
@@ -867,25 +854,3 @@ class DynamicSpeckleSimulationsPartiallyDeveloped:
             if ffmpeg_encoder_path is not None:
                 plt.rcParams['animation.ffmpeg_path'] = ffmpeg_encoder_path
             ani.save(savename)
-
-    def _get_specific_indices(self, indices: Union[str, int, slice, Tuple, List, np.ndarray] = "all"):
-        """
-        Protected method used to access specific frames depending on specified indices.
-        :param indices: str, int, slice Tuple, List or np.ndarray. Parameter used to specify which simulation to keep.
-        It can be different object. By default, it is a string 'all' which means we save all the frames of the
-        simulation (it is the only accepted string). When it is an integer, it means we only keep one frame. When a
-        slice, we keep the frames included in it. When an iterable (list, tuple, array), we keep the ones contained
-        inside.
-        :return: The wanted simulations indices, a list.
-        """
-        if indices == "all":
-            sims = range(self._previous_simulations.shape[0])
-        elif isinstance(indices, int):
-            sims = [indices]
-        elif isinstance(indices, slice):
-            sims = range(indices.start, indices.stop, indices.step)
-        elif isinstance(indices, (Tuple, List, np.ndarray)):
-            sims = indices
-        else:
-            raise ValueError(f"Parameter `{indices}` is not recognized.")
-        return sims

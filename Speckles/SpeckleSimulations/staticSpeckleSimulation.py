@@ -203,7 +203,6 @@ class SpeckleSimulationFromEllipsoidSource(StaticSpeckleSimulation):
 
 
 class SpeckleSimulationFromCircularSource(SpeckleSimulationFromEllipsoidSource):
-    # TODO: Override get / set of vertical and horizontal diameters to prevent or do change both at same time.
     """
     Class used to simulate circular speckles. Derived from `SpeckleSimulationFromEllipsoidSource`.
     """
@@ -222,22 +221,60 @@ class SpeckleSimulationFromCircularSource(SpeckleSimulationFromEllipsoidSource):
         self._circle_radius = circle_diameter / 2
 
     @property
+    def vertical_diameter(self):
+        """
+        Getter of the vertical diameter of the mask. Since it is a circle, the vertical diameter is equal to the
+        horizontal diameter.
+        :return: The vertical (i.e. the diameter) of the circular mask (a float).
+        """
+        return super(SpeckleSimulationFromCircularSource, self).vertical_diameter
+
+    @vertical_diameter.setter
+    def vertical_diameter(self, vertical_diameter: float):
+        """
+        Setter of the vertical diameter of the circular mask. Since it is circular, it also sets the horizontal mask.
+        :param vertical_diameter: float. New vertical diameter (i.e. the diameter) of the circular mask. It must be
+        strictly positive.
+        :return: Nothing.
+        """
+        self.circle_diameter = vertical_diameter
+
+    @property
+    def horizontal_diameter(self):
+        """
+        Getter of the horizontal diameter of the mask. Since it is a circle, the horizontal diameter is equal to the
+        vertical diameter.
+        :return: The horizontal (i.e. the diameter) of the circular mask (a float).
+        """
+        return super(SpeckleSimulationFromCircularSource, self).horizontal_diameter
+
+    @horizontal_diameter.setter
+    def horizontal_diameter(self, horizontal_diameter: float):
+        """
+        Setter of the horizontal diameter of the circular mask. Since it is circular, it also sets the vertical mask.
+        :param horizontal_diameter: float. New horizontal diameter (i.e. the diameter) of the circular mask. It must be
+        strictly positive.
+        :return: Nothing.
+        """
+        self.circle_diameter = horizontal_diameter
+
+    @property
     def circle_diameter(self):
         """
-        Getter of the circle diameter.
-        :return: The circle diameter (a float).
+        Getter of the circular diameter of the mask.
+        :return: The circular diameter  of the mask (a float).
         """
         return self._circle_diameter
 
     @circle_diameter.setter
     def circle_diameter(self, circle_diameter: float):
         """
-        Setter of the circle diameter
+        Setter of the circular diameter of the mask.
         :param circle_diameter: float. New circle diameter (related to the speckle diameter). Must be strictly positive.
         :return: Nothing.
         """
-        if circle_diameter <= 0:
-            raise ValueError("The circle diameter must be strictly positive.")
+        super(SpeckleSimulationFromCircularSource, self).vertical_diameter = circle_diameter
+        super(SpeckleSimulationFromCircularSource, self).horizontal_diameter = circle_diameter
         self._circle_diameter = circle_diameter
         self._circle_radius = circle_diameter / 2
 
