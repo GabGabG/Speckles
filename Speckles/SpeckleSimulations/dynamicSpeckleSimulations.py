@@ -5,6 +5,7 @@ import abc
 from typing import Union, Tuple, List
 from matplotlib.animation import ArtistAnimation, FuncAnimation
 import warnings
+import seaborn as sns
 
 
 class DynamicSpeckleSimulations(abc.ABC):
@@ -502,3 +503,150 @@ class DynamicSpeckleSimulationsPartiallyDeveloped:
         else:
             raise ValueError(f"Parameter `{indices}` is not recognized.")
         return sims
+
+
+if __name__ == '__main__':
+    ffmpeg_path = r"C:\Users\goubi\ffmpeg-5.0-essentials_build\bin\ffmpeg.exe"
+    plt.rcParams['animation.ffmpeg_path'] = ffmpeg_path
+    plt.rcParams.update({"font.size": 36})
+
+
+    def corr(X, Y):
+        X = np.ravel(X)
+        Y = np.ravel(Y)
+        return np.mean((X - np.mean(X)) * (Y - np.mean(Y))) / (np.std(X) * np.std(Y))
+
+
+    t_steps = 100
+    # speckles = DynamicSpeckleSimulationsFromCircularSourceWithPupilMotion(500, t_steps, 25, (0, 0), (0, 25))
+    speckles = DynamicSpeckleSimulationsFromCircularSourceWithUniformCorrelation(500, t_steps, 50)
+    speckles = DynamicSpeckleSimulationsFromCircularSourceWithBrownianMotion(500, t_steps, 100, 0, 1, 0.3)
+    W = speckles.simulate()
+    imio.imwrite("dynamic_1.png", speckles.previous_simulations[0])
+    imio.imwrite("dynamic_2.png", speckles.previous_simulations[1])
+    imio.imwrite("dynamic_last.png", speckles.previous_simulations[-1])
+    correlations = []
+    for i in range(t_steps):
+        correlations.append(corr(speckles.previous_simulations[0], speckles.previous_simulations[i]))
+    fig, axe = plt.subplots(1,1, figsize=(5,8))
+    axe.plot(np.arange(t_steps), correlations, linewidth=10)
+    axe.set_xlabel("Time step [a.u.]")
+    axe.set_ylabel("Correlation")
+    plt.show()
+    exit()
+    specks = speckles.previous_simulations
+    W2 = speckles.simulate()
+    W = np.append(W, W2, -1)
+    speckles = np.append(specks, speckles.previous_simulations, 0)
+
+    speckles = (speckles.transpose(1, 2, 0) * np.arange(1, t_steps * 2 + 1)).transpose(2, 0, 1)
+
+
+    def mu(W_n: np.ndarray, W_m: np.ndarray):
+        num = np.mean(W_n * W_m.conj())
+        denom = np.sqrt(np.mean(np.abs(W_n) ** 2) * np.mean(np.abs(W_m) ** 2))
+        return num / denom
+
+
+    # speckles = speckles.previous_simulations
+    indices = np.arange(0, 200, 10)
+    # indices = [0] * 10
+    # speckles = [speckles[i] for i in indices]
+    size = [len(indices), len(indices)]
+
+    intensity = 0
+    angles = []
+    matrix4 = np.zeros(size, complex)
+    corr_matrix = np.zeros(size, float)
+    for ii, i in enumerate(indices):
+        intensity += speckles[i]
+        # print(np.mean(speckles[i]))
+        for jj, j in enumerate(indices):
+            current_angle = np.random.normal(0, 2 * np.pi)
+
+            if ii == jj:
+                current_angle = 0
+            elif ii > jj:
+                current_angle *= -1
+            current_angle = np.angle(mu(W[:, :, i], W[:, :, j]))
+            current_mu_0 = mu(W[:, :, i], W[:, :, j])
+            current_mu_1 = np.abs(current_mu_0) * np.exp(1j * current_angle)
+            angle = np.angle(current_mu_1)
+            angles.append(angle)
+            matrix4[ii, jj] = np.sqrt(np.mean(speckles[i]) * np.mean(speckles[j])) * current_mu_1
+            corr_matrix[ii, jj] = corr(speckles[i], speckles[j])
+    matrix5 = np.abs(matrix4)
+    print(angles)
+    print("====")
+    print(np.linalg.eigvalsh(matrix4))
+    print(np.linalg.eigvalsh(matrix5))
+    print("====")
+    print(matrix4)
+    print(matrix5.astype(float))
+    print(corr_matrix)
+    print("====")
+    print(np.linalg.norm(matrix4 - matrix5))
+    print(np.linalg.norm(matrix4 - matrix5) / np.linalg.norm(matrix4))
+    print("====")
+    print(np.max(np.abs(matrix5 - np.abs(matrix4.real))))
+    print(np.linalg.svd(matrix4)[1])
+    print(np.linalg.svd(matrix5)[1])
+
+
+    # matrix_2_r_1 = [np.mean(speckle_1), np.sqrt(np.mean(speckle_1) * np.mean(speckle_2)) * wanted_correlation ** .5]
+    # matrix_2_r_2 = [np.sqrt(np.mean(speckle_1) * np.mean(speckle_2)) * wanted_correlation ** .5, np.mean(speckle_2)]
+    # matrix_2 = np.array([matrix_2_r_1, matrix_2_r_2])
+
+    def prob_density_2x2(x, W_corr_matrix):
+        eigenvals = np.linalg.eigvalsh(W_corr_matrix)
+        print(eigenvals)
+        part1 = np.exp(-x / eigenvals[0]) / (eigenvals[0] - eigenvals[1])
+        part2 = np.exp(-x / eigenvals[1]) / (eigenvals[0] - eigenvals[1])
+        return part1 - part2
+
+
+    def prob_density_3x3(x, W_corr_matrix):
+        l_1, l_2, l_3 = np.linalg.eigvalsh(W_corr_matrix)
+        print(l_1)
+        print(l_2)
+        print(l_3)
+        if abs(l_1) <= 1e-7:
+            part_1 = 0
+        else:
+            part_1 = l_1 * np.exp(-x / l_1) / ((l_1 - l_2) * (l_1 - l_3))
+        if abs(l_2) <= 1e-10:
+            l_2 = 0
+        if abs(l_3) <= 1e-10:
+            l_3 = 0
+
+        part_2 = l_2 * np.exp(-x / l_2) / ((l_1 - l_2) * (l_2 - l_3))
+        part_3 = l_3 * np.exp(-x / l_3) / ((l_1 - l_3) * (l_2 - l_3))
+        return part_1 - part_2 + part_3
+
+
+    def prob_density_NxN(x, W_corr_matrix):
+        eigenvals = np.abs(np.linalg.eigvalsh(W_corr_matrix))
+        density = 0
+        for i, eig in enumerate(eigenvals):
+            if abs(eig) <= 1e-15:
+                continue
+            num = eig ** (len(eigenvals) - 2) * np.exp(-x / eig)
+            denom = 1
+            for j, eig2 in enumerate(eigenvals):
+                if i != j:
+                    denom *= (eig - eig2)
+            density += num / denom
+        return density
+
+
+    vals, x_bins, _ = plt.hist(intensity.ravel(), 256, None, True, label="Intensity histogram")
+    x = (x_bins[:-1] + x_bins[1:]) / 2
+    # x = np.insert(x, 0, 0)
+    plt.plot(x, prob_density_NxN(x, matrix4), linestyle="--", color="red", label="Field correlation")
+    plt.plot(x, prob_density_NxN(x, matrix5), linestyle=":", color="black", label="Intensity correlation")
+    # plt.plot(x, prob_density_NxN(x, matrix6), color="green", label="Field correlation v2")
+    plt.xlabel(r"Intensity $I$ [-]")
+    plt.ylabel(r"$P_I(I)$ [-]")
+    plt.legend()
+    # plt.savefig(f"cas_intermediaire_{case}.png")
+    plt.show()

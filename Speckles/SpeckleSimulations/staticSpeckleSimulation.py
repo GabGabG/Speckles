@@ -4,8 +4,6 @@ import matplotlib.pyplot as plt
 import abc
 from typing import Type, Tuple, Dict
 
-plt.rcParams.update({"font.size": 22})
-
 
 class StaticSpeckleSimulation(abc.ABC):
 
@@ -275,3 +273,89 @@ class PartiallyDevelopedSpeckleSimulation:
             raise ValueError("No simulation to show.")
         plt.imshow(self._previous_simulation, "gray")
         plt.show()
+
+
+if __name__ == '__main__':
+    plt.rcParams.update({"font.size": 36})
+    from simulationUtils import *
+
+    # ell_shapes = SpeckleSimulationsUtils.ellipse_diameters_for_specific_speckle_sizes(1000, 20, 40)
+    # fully_developed = SpeckleSimulationFromEllipsoidSource(1000, *ell_shapes)
+    # fully_developed.simulate()
+    # fully_developed.save_previous_simulation(r"../test_speckle_size_ellipsoid.tiff")
+    # exit()
+    # circ = SpeckleSimulationFromCircularSource(1000,
+    #                                            *SpeckleSimulationsUtils.circle_diameter_for_specific_speckle_size(1000,
+    #                                                                                                               2.15))
+    #
+    # circ.simulate()
+    # circ.show_previous_simulation()
+    cir_shape = SpeckleSimulationsUtils.circle_diameter_for_specific_speckle_size(1000, 10)
+    fully_developed = SpeckleSimulationFromCircularSource(1000, cir_shape)
+    fully_developed.simulate()
+
+    sim_fully = fully_developed.previous_simulation
+    part_developed = SpeckleSimulationFromCircularSource(1000, cir_shape)
+    part_developed.simulate(False)
+    sim_part = part_developed.previous_simulation
+    fig, (ax1, ax2) = plt.subplots(1, 2)
+    ax1.hist(sim_fully.ravel(), 256, None, True, label="Intensity Histogram")
+    ax2.hist(sim_part.ravel(), 256, None, True, label="Intensity Histogram")
+    #ax1.legend()
+    #ax2.legend()
+    ax1.set_xlabel("Intensity $I$ [a.u.]")
+    ax2.set_ylabel("Probability $P_I(I)$")
+    ax2.set_xlabel("Intensity $I$ [a.u.]")
+    ax1.set_ylabel("Probability $P_I(I)$")
+    plt.show()
+    fig, (ax1, ax2) = plt.subplots(1, 2)
+    ax1.imshow(sim_fully, cmap="gray")
+    ax2.imshow(sim_part, cmap="gray")
+    plt.show()
+    imio.imsave("fully_developed_simulation.png", sim_fully)
+    imio.imwrite("partially_developed_simulation.png", sim_part)
+    exit()
+    somme = PartiallyDevelopedSpeckleSimulation(SpeckleSimulationFromCircularSource, 1000, cir_shape)
+    somme.simulate(12, True)
+    somme.show_previous_simulation()
+    speckles = somme.previous_simulation
+    plt.hist(speckles.ravel(), 256, None, True)
+    plt.show()
+    exit()
+    # circ_diam = SpeckleSimulationsUtils.circle_diameter_for_specific_speckle_size(1000, 4)
+    # speckle_size = SpeckleSimulationsUtils.speckle_size_from_circle_diameter(1000, 250)
+    el = SpeckleSimulationFromEllipsoidSource(500,
+                                              *SpeckleSimulationsUtils.ellipse_diameters_for_specific_speckle_sizes(
+                                                  500, 5, 20))
+    el.simulate()
+    el.show_previous_simulation()
+
+
+    # el.save_previous_simulation("test.png")
+    # el.show_previous_simulation()
+    # el.save_previous_simulation("test.tif")
+    # print(circ_diam)
+    # print(speckle_size)
+    # base_class = SpeckleSimulationFromCircularSource
+    # sim_shape = 1000
+    # circle_diam = 100
+    # part = PartiallyDevelopedSpeckleSimulation(base_class, sim_shape, circle_diam)
+    # part.simulate(2)
+    # part.show_previous_simulation()
+    # part.intensity_histogram()
+
+    def pol_intensity(x, data, pol_degree):
+        mean = np.mean(data)
+        return 1 / (pol_degree * mean) * (
+                np.exp(-2 / (1 + pol_degree) * x / mean) - np.exp(-2 / (1 - pol_degree) * x / mean))
+
+
+    pol_deg = 0.75
+    pol = SpeckleSimulationFromCircularSourceWithPolarization(1000, 50, pol_deg)
+    pol.simulate()
+    pol.show_previous_simulation()
+    sim_fully = pol.previous_simulation
+    _, x = pol.intensity_histogram()
+    x = (x[:-1] + x[1:]) / 2
+    plt.plot(x, pol_intensity(x, np.ravel(sim_fully), pol_deg), color="red", linestyle="--")
+    pol.intensity_histogram()
