@@ -4,6 +4,7 @@ import os
 import re
 import multiprocessing as mp
 import tifffile
+import pandas as pd
 
 
 def correlation_bunch(images):
@@ -13,6 +14,7 @@ def correlation_bunch(images):
         image_Y = tifffile.imread(images[i])
         # print(f"Correlation {images[0]} with {images[i]}")
         correlations.append(correlation(image_X, image_Y))
+    print(f"{os.getpid()} Done!")
     return correlations
 
 
@@ -46,22 +48,19 @@ def squared(numbers):
 if __name__ == '__main__':
     machine = input("What machine? (local or imaris)")
     if machine == "imaris":
-        path = "/Volumes/Goliath/jroussel/Speckle/20220818-DecorrelationChickenSkin/" \
-               "20220818-DecorrelationChickenSkinPosition2Reflected"
-        print(os.listdir(path)[:10])
-    exit()
-    # n = range(1000)
-    # with mp.Pool(10) as pool:
-    #     output = pool.map(squared, n)
-    # print(output)
-    # exit()
-    path = r"C:\Users\goubi\Desktop\images"
+        path = "/Volumes/Goliath/jroussel/Speckle/20220818-DecorrelationChickenSkin/"
+        name = "20220818-DecorrelationChickenSkinPosition2Reflected"
+        path += name
+    else:
+        path = r"C:\Users\goubi\Desktop\\"
+        name = "images"
+        path += name
     all_files = sortedAlphanumeric(os.listdir(path))
-    all_files = [os.path.join(path, i) for i in all_files]
-    splitted_files = splitContainer(all_files, 30)
-    with mp.Pool(10) as pool:
+    all_files = [os.path.join(path, i) for i in all_files if i.endswith(".tiff")]
+    b_size = 50
+    splitted_files = splitContainer(all_files, b_size)
+    with mp.Pool(None) as pool:
         correlations = pool.map(correlation_bunch, splitted_files)
-    for corr in correlations:
-        plt.plot(corr)
-    plt.show()
-    # print(correlations)
+    correlations = np.array(correlations).T
+    df = pd.DataFrame(correlations)
+    df.to_csv(f"{name}_batch_of_{b_size}.csv")
