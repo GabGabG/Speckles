@@ -5,7 +5,10 @@ import re
 import multiprocessing as mp
 import tifffile
 import pandas as pd
+from scipy.optimize import curve_fit
 
+def exp(tau, tau_c):
+    return np.exp(-tau / tau_c)
 
 def correlation_bunch(images):
     image_X = tifffile.imread(images[0])
@@ -46,6 +49,30 @@ def squared(numbers):
 
 
 if __name__ == '__main__':
+    # df = pd.read_csv("20220818-DecorrelationChickenSkinPosition2Reflected_batch_of_25.csv", index_col=0)
+    # popts = []
+    # for col in df.columns:
+    #     data = df[col]
+    #     tau = np.arange(0, len(data), 1)
+    #     popt, pcov = curve_fit(exp, tau, data)
+    #     popts.append(popt)
+    #     plt.plot(data)
+    # plt.show()
+    # df = pd.read_csv("20220818-DecorrelationChickenSkinPosition3Reflected_batch_of_25.csv", index_col=0)
+    # popts2 = []
+    # for col in df.columns:
+    #     data = df[col]
+    #     tau = np.arange(0, len(data), 1)
+    #     popt, pcov = curve_fit(exp, tau, data)
+    #     popts2.append(popt)
+    #     plt.plot(data)
+    # plt.show()
+    # plt.plot(popts)
+    # plt.plot(popts2)
+    # plt.show()
+    # plt.hist(popts, 5)
+    # plt.show()
+    # exit()
     machine = input("What machine? (local or imaris)")
     if machine == "imaris":
         path = "/Volumes/Goliath/jroussel/Speckle/20220818-DecorrelationChickenSkin/"
@@ -61,6 +88,7 @@ if __name__ == '__main__':
     splitted_files = splitContainer(all_files, b_size)
     with mp.Pool(None) as pool:
         correlations = pool.map(correlation_bunch, splitted_files)
-    correlations = np.array(correlations).T
+    # correlations = np.array(correlations).T
     df = pd.DataFrame(correlations)
-    df.to_csv(f"{name}_batch_of_{b_size}.csv")
+    print(df)
+    #df.to_csv(f"{name}_batch_of_{b_size}.csv")
