@@ -83,6 +83,7 @@ if __name__ == '__main__':
         name = "images"
         path += name
     all_files = sortedAlphanumeric(os.listdir(path))
+    print(all_files)
     all_files = [os.path.join(path, i) for i in all_files if i.endswith(".tiff")]
     b_size = 50
     splitted_files = splitContainer(all_files, b_size)
