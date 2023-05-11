@@ -516,7 +516,7 @@ class DynamicSpeckleSimulationsFromCircularSourceWithBrownianMotion(DynamicSpeck
             np.fft.ifft2(
                 np.fft.ifftshift(np.fft.fftshift(np.fft.fft2(W, axes=(0, 1)), axes=(0, 1)) * masks, axes=(0, 1)),
                 axes=(0, 1))) ** 2).real
-        sims /= np.max(sims, (0, 1))
+        # sims /= np.max(sims, (0, 1))
         self._previous_simulations = sims.transpose((2, 0, 1))
         return W
 
